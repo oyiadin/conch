@@ -1,0 +1,12 @@
+{
+  "authors": [
+    {
+      "full_name": "full name",
+      "orcid": "orcid",
+      "affiliation": [
+        "affiliation 1",
+        "affiliation 2"
+      ]
+    }
+  ]
+}

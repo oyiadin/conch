@@ -1,0 +1,26 @@
+{
+  "articles": [
+    {
+      "title": {
+        "value": "article title",
+        "simhash1": "16bit of hash",
+        "simhash2": "16bit of hash",
+        "simhash3": "16bit of hash",
+        "simhash4": "16bit of hash"
+      },
+      "authors": [
+        {
+          "name": "full name",
+          "orcid": "unique id of this author"
+        }
+      ],
+      "abstract": {
+        "value": "abstract of this article",
+        "simhash1": "16bit of hash",
+        "simhash2": "16bit of hash",
+        "simhash3": "16bit of hash",
+        "simhash4": "16bit of hash"
+      }
+    }
+  ]
+}
