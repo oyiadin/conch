@@ -1,11 +1,24 @@
 {
   "authors": [
     {
-      "full_name": "full name",
-      "orcid": "orcid",
-      "affiliation": [
-        "affiliation 1",
-        "affiliation 2"
+      "_id": "the internel author id",
+      "keys": {
+        "dblp": "dblp key",
+        "orcid": "orcid key",
+      },
+      "name": {
+        "full_name": "full name, given name first then family name, always exist",
+        "given_names": "given names parsed and got from orcid",
+        "family_name": "family name parsed and got from orcid",
+        "other_names": ["xxxx"]
+      },
+      "bio": "xxxx",
+      "urls": ["xxx"],
+      "affiliations": [
+        {
+          "name": "China University",
+          "label": "Phd"
+        }
       ]
     }
   ]
