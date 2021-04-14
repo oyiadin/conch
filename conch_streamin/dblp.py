@@ -3,6 +3,7 @@ import gzip
 import os
 import tempfile
 from typing import Tuple, Literal, Optional
+from zlib import crc32
 
 import requests
 import lxml.etree as ET
@@ -76,19 +77,113 @@ def get_html_inside(root: ET._Element) -> str:
 
 
 def calc_article_hash(e: ET._Element) -> int:
-    pass
+    authors = []
+    author: ET._Element
+    for author in e.iterchildren(tag='author'):
+        orcid = author.attrib.get('orcid', '')
+        content = ' '.join(author.itertext())
+        authors.append(f'{orcid}|{content}')
+    authors = ';'.join(authors)
+    title = get_html_inside(next(e.iterchildren('title')))
+    journal = ''
+    for item in e.iterchildren('journal'):
+        journal = item.text
+        break
+    volume = ''
+    for item in e.iterchildren('volume'):
+        volume = item.text
+        break
+    year = ''
+    for item in e.iterchildren('year'):
+        year = item.text
+        break
+    url = ''
+    for item in e.iterchildren('url'):
+        url = item.text
+        break
+    notes = []
+    note: ET._Element
+    for note in e.iterchildren('note'):
+        type = note.attrib.get('type', '')
+        if type == 'reviewid' or type == 'rating':
+            continue
+        else:
+            notes.append(f'{type}|{note.text}')
+    notes = ';'.join(notes)
+    ees = []
+    ee: ET._Element
+    for ee in e.iterchildren('ee'):
+        content = ee.text
+        ees.append(content)
+    ees = ';'.join(ees)
+    pages = ''
+    for item in e.iterchildren('pages'):
+        pages = item.text
+        break
+
+    description = f'ART;{authors}{title}{journal}{volume}{year}{url}' \
+                  f'{pages};N{notes};E{ees}'
+    return crc32(description)
 
 
 def calc_inproceedings_hash(e: ET._Element) -> int:
-    pass
+    authors = []
+    author: ET._Element
+    for author in e.iterchildren(tag='author'):
+        orcid = author.attrib.get('orcid', '')
+        content = ' '.join(author.itertext())
+        authors.append(f'{orcid}|{content}')
+    authors = ';'.join(authors)
+    title = get_html_inside(next(e.iterchildren('title')))
+    pages = ''
+    for item in e.iterchildren('pages'):
+        pages = item.text
+        break
+    year = next(e.iterchildren('year')).text
+    booktitle = ' '.join(next(e.iterchildren('booktitle')).itertext())
+    ees = []
+    ee: ET._Element
+    for ee in e.iterchildren('ee'):
+        content = ee.text
+        ees.append(content)
+    ees = ';'.join(ees)
+    url = next(e.iterchildren('url')).text
+    notes = []
+    note: ET._Element
+    for note in e.iterchildren('note'):
+        notes.append(note.text)
+    notes = ';'.join(notes)
+
+    description = f'INP;{authors}{title};P{pages};{year}{booktitle};' \
+                  f'E{ees};U{url};{notes}'
+    return crc32(description)
 
 
 def calc_www_homepages_hash(e: ET._Element) -> int:
     mdate = e.attrib['mdate']
     publtype = e.attrib.get('publtype', '')
     author = ' '.join(next(e.iterchildren('author')).itertext())
+    notes = []
+    note: ET._Element
+    for note in e.iterchildren(tag='note'):
+        type = note.attrib.get('type', '')
+        label = note.attrib.get('label')
+        content = ' '.join(note.itertext())
+        notes.append(f'{type}-{label}-{content}')
+    notes = ';'.join(notes)
+    urls = []
+    url: ET._Element
+    for url in e.iterchildren(tag='url'):
+        type = url.attrib.get('type', '')
+        if type == 'deprecated':
+            continue
+        content = ' '.join(url.itertext())
+        urls.append(f'{type}-{content}')
+    urls = ';'.join(urls)
+    # <ee> is useless in most of the homepages
 
-    description = ''
+    description = f'WWW;{mdate}{publtype}{author};N{notes};U{urls}'
+    return crc32(description)
 
 
 def check_if_need_insert_or_update(e: ET._Element) -> bool:
