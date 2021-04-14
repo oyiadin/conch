@@ -2,7 +2,8 @@
 import gzip
 import os
 import tempfile
-from typing import Tuple, Literal, Optional
+from copy import deepcopy
+from typing import Tuple, Literal, Optional, Dict
 from zlib import crc32
 
 import requests
@@ -75,121 +76,137 @@ def get_html_inside(root: ET._Element) -> str:
     return result
 
 
+def extract_useful_information(e: ET._Element) -> Dict:
+    item: ET._Element
+    if e.tag in ['article', 'inproceedings']:
+        authors = []
+        for item in e.iterchildren(tag='author'):
+            orcid = item.attrib.get('orcid', '')
+            content = ' '.join(item.itertext())
+            authors.append({'orcid': orcid, 'name': content})
+        title = get_html_inside(next(e.iterchildren('title')))
+        pages = ''
+        for item in e.iterchildren('pages'):
+            pages = item.text
+            break
+        year = ''
+        for item in e.iterchildren('year'):
+            year = item.text
+            break
+        ees = []
+        for item in e.iterchildren('ee'):
+            content = item.text
+            ees.append(content)
 
-def calc_article_hash(e: ET._Element) -> int:
-    authors = []
-    author: ET._Element
-    for author in e.iterchildren(tag='author'):
-        orcid = author.attrib.get('orcid', '')
-        content = ' '.join(author.itertext())
-        authors.append(f'{orcid}|{content}')
-    authors = ';'.join(authors)
-    title = get_html_inside(next(e.iterchildren('title')))
-    journal = ''
-    for item in e.iterchildren('journal'):
-        journal = item.text
-        break
-    volume = ''
-    for item in e.iterchildren('volume'):
-        volume = item.text
-        break
-    year = ''
-    for item in e.iterchildren('year'):
-        year = item.text
-        break
-    url = ''
-    for item in e.iterchildren('url'):
-        url = item.text
-        break
-    notes = []
-    note: ET._Element
-    for note in e.iterchildren('note'):
-        type = note.attrib.get('type', '')
-        if type == 'reviewid' or type == 'rating':
-            continue
+        if e.tag == 'article':
+            journal = ''
+            for item in e.iterchildren('journal'):
+                journal = item.text
+                break
+            volume = ''
+            for item in e.iterchildren('volume'):
+                volume = item.text
+                break
+            url = ''
+            for item in e.iterchildren('url'):
+                url = item.text
+                break
+            notes = []
+            for item in e.iterchildren('note'):
+                type = item.attrib.get('type', '')
+                if type == 'reviewid' or type == 'rating':
+                    continue
+                else:
+                    notes.append({'type': type, 'text': item.text})
+
+            booktitle = ''
+
+        # elif e.tag == 'inproceedings':
         else:
-            notes.append(f'{type}|{note.text}')
-    notes = ';'.join(notes)
-    ees = []
-    ee: ET._Element
-    for ee in e.iterchildren('ee'):
-        content = ee.text
-        ees.append(content)
-    ees = ';'.join(ees)
-    pages = ''
-    for item in e.iterchildren('pages'):
-        pages = item.text
-        break
+            booktitle = ' '.join(next(e.iterchildren('booktitle')).itertext())
+            url = next(e.iterchildren('url')).text
+            notes = []
+            for item in e.iterchildren('note'):
+                notes.append({'type': '', 'text': item.text})
 
-    description = f'ART;{authors}{title}{journal}{volume}{year}{url}' \
-                  f'{pages};N{notes};E{ees}'
+            journal = volume = ''
+
+        return {
+            'type': e.tag,
+            'title': title,
+            'authors': authors,
+            'booktitle': booktitle,
+            'journal': journal,
+            'volume': volume,
+            'url': url,
+            'ees': ees,
+            'year': year,
+            'pages': pages,
+            'notes': notes,
+        }
+
+    elif e.tag == 'www':
+        mdate = e.attrib['mdate']
+        publtype = e.attrib.get('publtype', '')
+        name = ' '.join(next(e.iterchildren('author')).itertext())
+        notes = []
+        for item in e.iterchildren(tag='note'):
+            type = item.attrib.get('type', '')
+            label = item.attrib.get('label', '')
+            content = ' '.join(item.itertext())
+            notes.append({'type': type, 'label': label, 'text': content})
+        urls = []
+        for item in e.iterchildren(tag='url'):
+            type = item.attrib.get('type', '')
+            if type == 'deprecated':
+                continue
+            content = ' '.join(item.itertext())
+            urls.append({'type': type, 'text': content})
+        # <ee> is useless in most of the homepages
+
+        return {
+            'type': 'homepage',
+            'name': name,
+            'urls': urls,
+            'mdate': mdate,
+            'notes': notes,
+            'publtype': publtype,
+        }
+
+    else:
+        raise ValueError(f"unknown tag type: {e.tag}")
+
+
+def calc_article_or_in_proceedings_hash(info) -> int:
+    copied_info = deepcopy(info)
+    copied_info['authors'] = ';'.join(
+        f"{item['orcid']}|{item['name']}" for item in info['authors'])
+    copied_info['ees'] = ';'.join(info['ees'])
+    copied_info['notes'] = ';'.join(
+        f"{item['type']}:{item['text']}" for item in info['notes'])
+    description = (
+        '{type};{authors}{title}{booktitle}{journal}{volume}{year}{pages}'
+        ';U{url};N{notes};E{ees}'
+    ).format(**copied_info)
     return crc32(description)
 
 
-def calc_inproceedings_hash(e: ET._Element) -> int:
-    authors = []
-    author: ET._Element
-    for author in e.iterchildren(tag='author'):
-        orcid = author.attrib.get('orcid', '')
-        content = ' '.join(author.itertext())
-        authors.append(f'{orcid}|{content}')
-    authors = ';'.join(authors)
-    title = get_html_inside(next(e.iterchildren('title')))
-    pages = ''
-    for item in e.iterchildren('pages'):
-        pages = item.text
-        break
-    year = next(e.iterchildren('year')).text
-    booktitle = ' '.join(next(e.iterchildren('booktitle')).itertext())
-    ees = []
-    ee: ET._Element
-    for ee in e.iterchildren('ee'):
-        content = ee.text
-        ees.append(content)
-    ees = ';'.join(ees)
-    url = next(e.iterchildren('url')).text
-    notes = []
-    note: ET._Element
-    for note in e.iterchildren('note'):
-        notes.append(note.text)
-    notes = ';'.join(notes)
-
-    description = f'INP;{authors}{title};P{pages};{year}{booktitle};' \
-                  f'E{ees};U{url};{notes}'
-    return crc32(description)
-
-
-def calc_www_homepages_hash(e: ET._Element) -> int:
-    mdate = e.attrib['mdate']
-    publtype = e.attrib.get('publtype', '')
-    author = ' '.join(next(e.iterchildren('author')).itertext())
-    notes = []
-    note: ET._Element
-    for note in e.iterchildren(tag='note'):
-        type = note.attrib.get('type', '')
-        label = note.attrib.get('label')
-        content = ' '.join(note.itertext())
-        notes.append(f'{type}-{label}-{content}')
-    notes = ';'.join(notes)
-    urls = []
-    url: ET._Element
-    for url in e.iterchildren(tag='url'):
-        type = url.attrib.get('type', '')
-        if type == 'deprecated':
-            continue
-        content = ' '.join(url.itertext())
-        urls.append(f'{type}-{content}')
-    urls = ';'.join(urls)
-    # <ee> is useless in most of the homepages
-
-    description = f'WWW;{mdate}{publtype}{author};N{notes};U{urls}'
+def calc_www_homepages_hash(info: Dict) -> int:
+    copied_info = deepcopy(info)
+    copied_info['urls'] = ';'.join(
+        f"{item['type']}|{item['text']}" for item in info['urls'])
+    copied_info['notes'] = ';'.join(
+        f"{item['type']}/{item['label']}={item['text']}"
+        for item in info['notes'])
+    description = \
+        '{type};{name}{mdate}{publtype};N{notes};U{urls}'.format(**copied_info)
     return crc32(description)
 
 
 def check_if_need_insert_or_update(e: ET._Element) -> bool:
     hash = dict(
-        article=calc_article_hash,
-        inproceedings=calc_inproceedings_hash,
+        article=calc_article_or_in_proceedings_hash,
+        inproceedings=calc_article_or_in_proceedings_hash,
         www=calc_www_homepages_hash,
     )[e.tag](e)
     key = e.attrib['key']  # key is required in dblp.xml
@@ -246,6 +263,7 @@ def analyze_xml(xml_path: str):
                 elem.clear()
         else:
             logger.error(f"unknown xml sax event: {event}")
+
 
 def clean_tempfile(fd, path):
     os.close(fd)
