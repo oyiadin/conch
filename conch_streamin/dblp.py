@@ -1,15 +1,14 @@
 # coding=utf-8
+
 import gzip
 import os
 import tempfile
-from copy import deepcopy
-from typing import Tuple, Literal, Optional, Dict
-from zlib import crc32
+from typing import Tuple, Dict
 
 import requests
 import lxml.etree as ET
 
-from conch_streamin.main import conf, r, logger, t_dblp
+from conch_streamin import conf, r, logger, t_dblp
 
 
 def download_file(url: str, path: str) -> str:
@@ -177,49 +176,20 @@ def extract_useful_information(e: ET._Element) -> Dict:
         raise ValueError(f"unknown tag type: {e.tag}")
 
 
-def calc_article_or_in_proceedings_hash(info) -> int:
-    copied_info = deepcopy(info)
-    copied_info['authors'] = ';'.join(
-        f"{item['orcid']}|{item['name']}" for item in info['authors'])
-    copied_info['ees'] = ';'.join(info['ees'])
-    copied_info['notes'] = ';'.join(
-        f"{item['type']}:{item['text']}" for item in info['notes'])
-    description = (
-        '{type};{authors}{title}{booktitle}{journal}{volume}{year}{pages}'
-        ';U{url};N{notes};E{ees}'
-    ).format(**copied_info)
-    return crc32(description)
-
-
-def calc_www_homepages_hash(info: Dict) -> int:
-    copied_info = deepcopy(info)
-    copied_info['urls'] = ';'.join(
-        f"{item['type']}|{item['text']}" for item in info['urls'])
-    copied_info['notes'] = ';'.join(
-        f"{item['type']}/{item['label']}={item['text']}"
-        for item in info['notes'])
-    description = \
-        '{type};{name}{mdate}{publtype};N{notes};U{urls}'.format(**copied_info)
-    return crc32(description)
-
-
 def check_if_need_insert_or_update(e: ET._Element) -> bool:
-    hash = dict(
-        article=calc_article_or_in_proceedings_hash,
-        inproceedings=calc_article_or_in_proceedings_hash,
-        www=calc_www_homepages_hash,
-    )[e.tag](e)
+    info = extract_useful_information(e)
+    type = info['type']
     key = e.attrib['key']  # key is required in dblp.xml
-    cached_hash = r.get(f'dblp_{key}')
-    if cached_hash is not None:
-        last_hash = int(cached_hash)
+    cached_mdate = r.get(f'dblp_{type}_{key}')
+    if cached_mdate is not None:
+        last_mdate = int(cached_mdate)
     else:
-        dblp_item = t_dblp.find_one({'key': key})
+        dblp_item = t_dblp.find_one({'type': type, 'key': key})
         if dblp_item is None:
             return True  # needed to be inserted
-        last_hash = dblp_item['hash']
+        last_mdate = dblp_item['mdate']
 
-    return hash != last_hash
+    return e.attrib['mdate'] != last_mdate
 
 
 def update_or_insert_to_db(e: ET._Element):
@@ -229,9 +199,12 @@ def update_or_insert_to_db(e: ET._Element):
 def process_record(e: ET._Element):
     assert e.tag in ['article', 'inproceedings', 'www'], \
         "record tag must be one of article, inproceedings and www"
-    if e.tag == 'www':
+    publtype = e.attrib.get('publtype')
+    if e.tag == 'article' or e.tag == 'inproceedings':
+        if 'withdrawn' in publtype or publtype in ['data', 'software']:
+            return  # do not handle it
+    elif e.tag == 'www':
         key = e.attrib['key']
-        publtype = e.attrib.get('publtype')
         if publtype == 'disambiguation' or publtype == 'noshow':
             return  # do not handle it
         if not key.startswith('homepages/'):
@@ -279,4 +252,10 @@ def dblp_analyze_entrance():
     clean_tempfile(xml_fd, xml_path)
 
 
-
+if __name__ == '__main__':
+    redownload_dtd_if_need()
+    gz_fd, gz_path = download_xml_gz('http://localhost/dblp.xml.gz')
+    xml_fd, xml_path = decompress_xml_gz(gz_path)
+    clean_tempfile(gz_fd, gz_path)
+    analyze_xml(xml_path)
+    clean_tempfile(xml_fd, xml_path)

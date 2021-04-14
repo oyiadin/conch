@@ -1,0 +1,8 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis
+  dblp:
+    build: .
+    command: python dblp.py

@@ -1,33 +1,14 @@
 # coding=utf-8
 
-import configparser
-import logging
-
 import celery
-import pymongo
-import pymongo.database
-import redis
 import requests
 
+from conch_streamin import *
 from conch_streamin.dblp import dblp_analyze_entrance
 
 
-logger = logging.getLogger("conch-streamin")
-
-conf = configparser.ConfigParser()
-conf.read_file(open("config.ini"))
-
 app = celery.Celery("conch.streamin", broker=conf['mq']['url'])
 
-dbclient = pymongo.MongoClient(conf['db']['url'])
-db = dbclient[conf['db']['db_name']]  # type: pymongo.database.Database
-t_dblp = db['dblp']  # type: pymongo.database.Collection
-t_arxiv = db['arxiv']
-
-
-r = redis.Redis(host=conf['redis']['host'],
-                port=conf['redis']['port'],
-                db=conf['redis']['db'])
 
 @app.task
 def analyse_arxiv_database():
@@ -60,6 +41,7 @@ def analyse_dblp_dump():
         'dblp_last_dump_started': '0',
         'dblp_last_dump_ended': '1',
     })
+
 
 @app.task
 def crawl_arxiv():
