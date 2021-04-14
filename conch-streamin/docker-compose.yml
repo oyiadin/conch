@@ -3,6 +3,9 @@ version: "3.8"
 services:
   redis:
     image: redis
+  mongo:
+    image: mongo
   dblp:
+    depends_on:
+      - redis
     build: .
-    command: python dblp.py

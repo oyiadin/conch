@@ -12,10 +12,11 @@ from conch_streamin import conf, r, logger, t_dblp
 
 
 def download_file(url: str, path: str) -> str:
-    with requests.get(url, stresm=True) as resp:
+    with requests.get(url, stream=True) as resp:
         resp.raise_for_status()
         with open(path, 'wb') as f:
-            for chunk in resp.iter_content(chunk_size=conf['network']['chunk_size']):
+            chunk_size = int(conf['network']['chunk_size'])
+            for chunk in resp.iter_content(chunk_size=chunk_size):
                 f.write(chunk)
 
     return path
@@ -48,7 +49,7 @@ def decompress_xml_gz(gz_path: str) -> Tuple[int, str]:
     with gzip.open(gz_path, 'rb') as fr:
         with open(path, 'wb') as fw:
             while True:
-                chunk = fr.read(conf['network']['chunk_size'])
+                chunk = fr.read(int(conf['network']['chunk_size']))
                 if chunk:
                     fw.write(chunk)
                 else: break
@@ -254,7 +255,7 @@ def dblp_analyze_entrance():
 
 if __name__ == '__main__':
     redownload_dtd_if_need()
-    gz_fd, gz_path = download_xml_gz('http://localhost/dblp.xml.gz')
+    gz_fd, gz_path = download_xml_gz('http://10.1.1.20/dblp.xml.gz')
     xml_fd, xml_path = decompress_xml_gz(gz_path)
     clean_tempfile(gz_fd, gz_path)
     analyze_xml(xml_path)
