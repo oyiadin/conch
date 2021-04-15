@@ -3,5 +3,7 @@
 *.pyc
 __pychache__
 .idea/
+venv/
 
-conch-streamin/dblp.dtd
+dblp*.dtd
+dblp*.xml
