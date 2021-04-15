@@ -8,7 +8,7 @@ import celery
 import pymongo
 import pymongo.database
 
-import conch_articles.utils as utils
+import conch_records.utils as utils
 
 
 logger = logging.getLogger("conch-articles")
@@ -54,7 +54,6 @@ def _get_update_operations__clever(document: Dict, **updates) -> Dict:
             operations[key] = value
 
     return operations
-
 
 
 @app.task
