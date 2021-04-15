@@ -5,7 +5,5 @@ services:
     image: redis
   mongo:
     image: mongo
-  dblp:
-    depends_on:
-      - redis
-    build: .
+
+// TODO

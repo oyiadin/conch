@@ -8,6 +8,6 @@ COPY requirements.txt /conch
 RUN pip install -r requirements.txt
 
 COPY config.ini /conch
-COPY conch_streamin/ /conch/conch_streamin/
+COPY conch_authors/ /conch/conch_authors/
 
-CMD celery -A conch_streamin.tasks worker --loglevel=INFO
+CMD celery -A conch_authors.tasks worker --loglevel=INFO

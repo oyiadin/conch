@@ -3,6 +3,7 @@
 import configparser
 import logging
 
+import celery
 import pymongo
 import pymongo.database
 import redis
@@ -23,3 +24,5 @@ t_arxiv = db['arxiv']  # type: pymongo.database.Collection
 r = redis.Redis(host=conf['redis']['host'],
                 port=conf['redis']['port'],
                 db=conf['redis']['db'])
+
+app = celery.Celery("conch.streamin", broker=conf['mq']['url'])

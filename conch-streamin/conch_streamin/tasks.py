@@ -1,21 +1,17 @@
 # coding=utf-8
 
-import celery
 import requests
 
 from conch_streamin import *
 from conch_streamin.dblp import dblp_analyze_entrance
 
 
-app = celery.Celery("conch.streamin", broker=conf['mq']['url'])
-
-
-@app.task
+@app.task(name="streamin.analyse_arxiv_database")
 def analyse_arxiv_database():
     pass
 
 
-@app.task
+@app.task(name="streamin.analyse_dblp_dump")
 def analyse_dblp_dump():
     last_started = int(r.get('dblp_last_dump_started') or '0')
     last_ended = int(r.get('dblp_last_dump_ended') or '0')
@@ -43,6 +39,6 @@ def analyse_dblp_dump():
     })
 
 
-@app.task
+@app.task(name="streamin.crawl_arxiv")
 def crawl_arxiv():
     pass

@@ -8,7 +8,7 @@ from typing import Tuple, Dict
 import requests
 import lxml.etree as ET
 
-from conch_streamin import conf, r, logger, t_dblp
+from conch_streamin import conf, r, logger, t_dblp, app as celery_app
 
 
 def download_file(url: str, path: str) -> str:
@@ -188,18 +188,25 @@ def check_if_need_insert_or_update(info: Dict) -> bool:
     mdate = info['mdate']
     cached_mdate = r.get(f'dblp_{type}_{key}')
     if cached_mdate is not None:
-        last_mdate = int(cached_mdate)
+        last_mdate = cached_mdate.decode()
     else:
-        dblp_item = t_dblp.find_one({'type': type, 'key': key})
+        dblp_item = t_dblp.find_one({'key': key})
         if dblp_item is None:
             return True  # needed to be inserted
         last_mdate = dblp_item['mdate']
+        r.set(f'dblp_{type}_{key}', mdate)  # TODO: 这个副作用放这不太好
 
     return mdate != last_mdate
 
 
-def manage_an_update(info: Dict):
-    pass
+def manage_an_update_or_insert(info: Dict):
+    celery_app.send_task("records.update_or_insert")  # TODO
+    # update redis mdate and db mdate
+    t_dblp.update_one(
+        {'key': info['key']},
+        {'$set': {'mdate': info['mdate']}},
+        upsert=True)
+    r.set(f"dblp_{info['type']}_{info['key']}", info['mdate'])
 
 
 def process_record(e: ET._Element):
@@ -219,7 +226,7 @@ def process_record(e: ET._Element):
     info = extract_useful_information(e)
     if check_if_need_insert_or_update(info):
         logger.info(f"An item has updated (or newly inserted) by dblp: {e.attrib['key']}")
-        manage_an_update(info)
+        manage_an_update_or_insert(info)
 
 
 def analyze_xml(xml_path: str):
@@ -243,7 +250,7 @@ def analyze_xml(xml_path: str):
         elif event == 'end':
             if elem.tag in ['article', 'inproceedings', 'www']:
                 process_record(elem)
-            if elem.getparent():
+            if elem.getparent() is not None:
                 elem.getparent().clear()
                 elem.clear()
         else:

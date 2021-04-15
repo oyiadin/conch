@@ -1,26 +1,9 @@
 # coding=utf-8
 
-import configparser
-import logging
 from typing import List, Dict
-
-import celery
-import pymongo
-import pymongo.database
-
 import conch_records.utils as utils
 
-
-logger = logging.getLogger("conch-articles")
-
-conf = configparser.ConfigParser()
-conf.read_file(open("config.ini"))
-
-app = celery.Celery("conch.articles", broker=conf['mq']['url'])
-
-dbclient = pymongo.MongoClient(conf['db']['url'])
-db = dbclient[conf['db']['db_name']]  # type: pymongo.database.Database
-t_articles = db['conch']  # type: pymongo.database.Collection
+from conch_records import *
 
 
 def _get_update_operations__clever(document: Dict, **updates) -> Dict:

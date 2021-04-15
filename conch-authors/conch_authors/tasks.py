@@ -1,29 +1,13 @@
 # coding=utf-8
-
-import configparser
-import logging
-from typing import List, Tuple, Dict
+from typing import List, Dict
 import urllib.parse
 
-import celery
-import pymongo
-import pymongo.database
 import requests
 
-
-logger = logging.getLogger("conch-authors")
-
-conf = configparser.ConfigParser()
-conf.read_file(open("config.ini"))
-
-app = celery.Celery("conch.authors", broker=conf['mq']['url'])
-
-dbclient = pymongo.MongoClient(conf['db']['url'])
-db = dbclient[conf['db']['db_name']]  # type: pymongo.database.Database
-t_authors = db['authors']  # type: pymongo.database.Collection
+from conch_authors import *
 
 
-@app.task
+@app.task(name="authors.add")
 def add(full_name: str,
         dblp_key: str,
         other_names: List[str] = None,
