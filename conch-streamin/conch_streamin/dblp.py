@@ -215,7 +215,11 @@ def data_manage_of_article_or_inproceedings(info: Dict) -> Dict:
             del copied_info['notes'][n]
             break
     copied_info['doi'] = doi
+    copied_info['ees'].insert(0, copied_info['url'])
+    del copied_info['url']
     del copied_info['mdate']
+    copied_info['dblp_key'] = copied_info['key']
+    del copied_info['key']
 
     return copied_info
 
@@ -241,6 +245,8 @@ def data_manage_of_homepages(info: Dict) -> Dict:
     copied_info['uname'] = uname
     del copied_info['mdate']
     del copied_info['type']
+    copied_info['dblp_key'] = copied_info['key']
+    del copied_info['key']
 
     return copied_info
 

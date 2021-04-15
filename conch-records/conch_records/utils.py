@@ -85,21 +85,3 @@ def find_similar(t_article: pymongo.database.Collection,
         t_article, "title", title_hash_parts)
 
     return article_with_similar_title
-
-
-def strip_off_blank_values(kwargs: Dict) -> Dict:
-    """Strip off the Key-Value pairs with blank values
-    >>> assert(strip_off_blank_values(dict(a=1, b=None, c='', d='x')) == dict(a=1, d='x')
-
-    >>> assert(strip_off_blank_values({'x': {'x': {'a': 'b', 'c': None}}})) == {'x': {'x': {'a': 'b'}}}"""
-
-    copied_kwargs = {}
-    for key, value in kwargs.items():
-        if not value:
-            pass
-        elif isinstance(value, dict):
-            copied_kwargs[key] = strip_off_blank_values(value)
-        else:
-            copied_kwargs[key] = value
-
-    return copied_kwargs

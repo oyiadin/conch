@@ -30,6 +30,7 @@ def fetch_and_analyse_dblp_dump():
             logger.info("dblp etag not changed, stopping dumping")
         else:
             response.close()  # early close
+            logger.debug("start fetch and analyze dblp dump")
             dblp_analyze_entrance()
             r.set('dblp_last_etag', etag)
 

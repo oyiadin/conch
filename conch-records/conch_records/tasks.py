@@ -1,6 +1,6 @@
 # coding=utf-8
 
-from typing import List, Dict
+from typing import List, Dict, Literal
 import conch_records.utils as utils
 
 from conch_records import *
@@ -39,35 +39,67 @@ def _get_update_operations__clever(document: Dict, **updates) -> Dict:
     return operations
 
 
-@app.task
-def add(title: str,
-        authors: List[Dict] = None,
-        abstract: str = None,
-        make_unique: bool = True):
+@app.task(name='records.update_or_insert')
+def update_or_insert(
+        type: Literal["article", "inproceedings"] = None,
+        title: str = None,
+        authors: List[Dict[Literal["key", "orcid"], str]] = None,
+        dblp_key: str = None,
+        booktitle: str = None,
+        journal: str = None,
+        volume: str = None,
+        doi: str = None,
+        ees: List[str] = None,
+        year: str = None,
+        pages: str = None,
+        notes: str = None,
+        abstract: str = None):
 
-    if make_unique:
-        similar_article = utils.find_similar(t_articles, title)
+    if not dblp_key:  # then find similar articles and (maybe) update it
+        logger.debug(f'finding similar records with title {title}')
+        similar_article = utils.find_similar(t_records, title)
         # if make_unique is enabled and we've found a similar article,
         # then just update it cleverly
         if similar_article is not None:
-            logger.warning(f"a similar article was found:\n"
+            logger.debug(f"a similar article was found:\n"
                            f" [{title}]\n"
                            f" [{similar_article['title']['value']}")
 
             update_operations = _get_update_operations__clever(
                 similar_article,
-                title=title, authors=authors, abstract=abstract
+                # only the fields below are allowed to be updated
+                title=title,
+                booktitle=booktitle,
+                journal=journal,
+                volume=volume,
+                doi=doi,
+                ees=ees,
+                year=year,
+                pages=pages,
+                notes=notes,
+                abstract=abstract,
             )
-            t_articles.update_one(
+            logger.debug('update operations: ' + str(update_operations))
+            t_records.update_one(
                 {'_id': similar_article['_id']},
                 {'$set': update_operations}
             )
             return
 
-    # if no similar article was found or make_unique was explicitly disabled
-    # then we just simply insert it into our database
-    t_articles.insert_one(utils.strip_off_blank_values(
-        title=title,
-        authors=authors,
-        abstract=abstract,
-    ))
+    data = {
+        'type': type,
+        'title': title,
+        'authors': authors,
+        'dblp_key': dblp_key,
+        'booktitle': booktitle,
+        'journal': journal,
+        'volume': volume,
+        'doi': doi,
+        'ees': ees,
+        'year': year,
+        'pages': pages,
+        'notes': notes,
+        'abstract': abstract,
+    }
+    logger.debug('inserting a new record in the db: ' + str(data))
+    t_records.insert_one(data)
