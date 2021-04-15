@@ -7,3 +7,5 @@ venv/
 
 dblp*.dtd
 dblp*.xml
+
+celerybeat-schedule

@@ -11,8 +11,8 @@ def analyse_arxiv_database():
     pass
 
 
-@app.task(name="streamin.analyse_dblp_dump")
-def analyse_dblp_dump():
+@app.task(name="streamin.fetch_and_analyse_dblp_dump")
+def fetch_and_analyse_dblp_dump():
     last_started = int(r.get('dblp_last_dump_started') or '0')
     last_ended = int(r.get('dblp_last_dump_ended') or '0')
     if last_started and not last_ended:

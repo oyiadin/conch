@@ -10,4 +10,4 @@ RUN pip install -r requirements.txt
 COPY config.ini /conch
 COPY conch_entrance/ /conch/conch_entrance/
 
-CMD celery -A conch_entrance.tasks worker --loglevel=INFO
+CMD celery -A conch_entrance beat -l INFO
