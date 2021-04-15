@@ -1,15 +1,13 @@
 # coding=utf-8
 
 import configparser
-import logging
+from loguru import logger
 
 import celery
 import pymongo
 import pymongo.database
 import redis
 
-
-logger = logging.getLogger("conch-streamin")
 
 conf = configparser.ConfigParser()
 conf.read_file(open("config.ini"))

@@ -1,5 +1,6 @@
-celery~=4.4.7
+celery>=5.0.5
 pymongo~=3.11.3
 redis
 requests
 lxml
+loguru
