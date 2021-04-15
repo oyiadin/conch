@@ -3,6 +3,7 @@
 import gzip
 import os
 import tempfile
+from copy import deepcopy
 from typing import Tuple, Dict
 
 import requests
@@ -86,7 +87,7 @@ def extract_useful_information(e: ET._Element) -> Dict:
         for item in e.iterchildren(tag='author'):
             orcid = item.attrib.get('orcid', '')
             content = ' '.join(item.itertext())
-            authors.append({'orcid': orcid, 'name': content})
+            authors.append({'orcid': orcid, 'key': content})
         title = get_html_inside(next(e.iterchildren('title')))
         pages = ''
         for item in e.iterchildren('pages'):
@@ -199,8 +200,60 @@ def check_if_need_insert_or_update(info: Dict) -> bool:
     return mdate != last_mdate
 
 
+
+def data_manage_of_article_or_inproceedings(info: Dict) -> Dict:
+    copied_info = deepcopy(info)
+    doi = ''
+    for n, ee in enumerate(copied_info['ees']):
+        if '://doi.org/' in ee:
+            doi = ee
+            del copied_info['ees'][n]
+            break
+    for n, note in enumerate(copied_info['notes']):
+        if note['type'] == 'doi':
+            doi = note['text']
+            del copied_info['notes'][n]
+            break
+    copied_info['doi'] = doi
+    del copied_info['mdate']
+
+    return copied_info
+
+
+def data_manage_of_homepages(info: Dict) -> Dict:
+    copied_info = deepcopy(info)
+    affiliations = []
+    awards = []
+    uname = ''
+    for n, note in list(enumerate(copied_info['notes'])):
+        if note['type'] == 'affiliation':
+            affiliations.append({'label': note['label'], 'text': note['text']})
+            # del copied_info['notes'][n]
+        elif note['type'] == 'uname':
+            uname = note['text']
+            # del copied_info['notes'][n]
+        elif note['type'] == 'award':
+            awards.append({'label': note['label'], 'text': note['text']})
+            # del copied_info['notes'][n]
+    del copied_info['notes']
+    copied_info['affiliations'] = affiliations
+    copied_info['awards'] = awards
+    copied_info['uname'] = uname
+    del copied_info['mdate']
+    del copied_info['type']
+
+    return copied_info
+
+
 def manage_an_update_or_insert(info: Dict):
-    celery_app.send_task("records.update_or_insert")  # TODO
+    if info['type'] == 'article' or info['type'] == 'inproceedings':
+        info = data_manage_of_article_or_inproceedings(info)
+        celery_app.send_task("records.update_or_insert", kwargs=info)
+    elif info['type'] == 'homepage':
+        info = data_manage_of_homepages(info)
+        celery_app.send_task("authors.update_or_insert", kwargs=info)
+    else:
+        raise ValueError(f"unknown item type: {info['type']}")
     # update redis mdate and db mdate
     t_dblp.update_one(
         {'key': info['key']},
