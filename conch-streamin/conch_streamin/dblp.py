@@ -28,11 +28,12 @@ def redownload_dtd_if_need(url: str = None):
     with requests.head(conf['dblp']['dtd_url']) as resp:
         resp.raise_for_status()
         etag = resp.headers['ETag']
-        last_etag = r.get('dblp_dtd_last_etag')
+        last_etag = r.get('dblp_dtd_last_etag').decode()
         if last_etag and etag == last_etag:
             logger.debug("no need to re-download the dtd file")
         else:
             logger.info(f"dblp.dtd: etag {last_etag} -> {etag}, re-downloading")
+            r.set('dblp_dtd_last_etag', etag)
             download_file(url, conf['dblp']['dtd_localpath'])
 
 
@@ -78,6 +79,8 @@ def get_html_inside(root: ET._Element) -> str:
 
 def extract_useful_information(e: ET._Element) -> Dict:
     item: ET._Element
+    key = e.attrib['key']
+    mdate = e.attrib['mdate']
     if e.tag in ['article', 'inproceedings']:
         authors = []
         for item in e.iterchildren(tag='author'):
@@ -134,19 +137,20 @@ def extract_useful_information(e: ET._Element) -> Dict:
         return {
             'type': e.tag,
             'title': title,
+            'key': key,
             'authors': authors,
             'booktitle': booktitle,
             'journal': journal,
             'volume': volume,
             'url': url,
             'ees': ees,
+            'mdate': mdate,
             'year': year,
             'pages': pages,
             'notes': notes,
         }
 
     elif e.tag == 'www':
-        mdate = e.attrib['mdate']
         publtype = e.attrib.get('publtype', '')
         name = ' '.join(next(e.iterchildren('author')).itertext())
         notes = []
@@ -167,6 +171,7 @@ def extract_useful_information(e: ET._Element) -> Dict:
         return {
             'type': 'homepage',
             'name': name,
+            'key': key,
             'urls': urls,
             'mdate': mdate,
             'notes': notes,
@@ -177,10 +182,10 @@ def extract_useful_information(e: ET._Element) -> Dict:
         raise ValueError(f"unknown tag type: {e.tag}")
 
 
-def check_if_need_insert_or_update(e: ET._Element) -> bool:
-    info = extract_useful_information(e)
+def check_if_need_insert_or_update(info: Dict) -> bool:
     type = info['type']
-    key = e.attrib['key']  # key is required in dblp.xml
+    key = info['key']
+    mdate = info['mdate']
     cached_mdate = r.get(f'dblp_{type}_{key}')
     if cached_mdate is not None:
         last_mdate = int(cached_mdate)
@@ -190,17 +195,17 @@ def check_if_need_insert_or_update(e: ET._Element) -> bool:
             return True  # needed to be inserted
         last_mdate = dblp_item['mdate']
 
-    return e.attrib['mdate'] != last_mdate
+    return mdate != last_mdate
 
 
-def update_or_insert_to_db(e: ET._Element):
+def manage_an_update(info: Dict):
     pass
 
 
 def process_record(e: ET._Element):
     assert e.tag in ['article', 'inproceedings', 'www'], \
         "record tag must be one of article, inproceedings and www"
-    publtype = e.attrib.get('publtype')
+    publtype = e.attrib.get('publtype', '')
     if e.tag == 'article' or e.tag == 'inproceedings':
         if 'withdrawn' in publtype or publtype in ['data', 'software']:
             return  # do not handle it
@@ -211,9 +216,10 @@ def process_record(e: ET._Element):
         if not key.startswith('homepages/'):
             return  # do not handle it
 
-    if check_if_need_insert_or_update(e):
-        logger.info(f"An item has updated by dblp: {e.attrib['key']}")
-        update_or_insert_to_db(e)
+    info = extract_useful_information(e)
+    if check_if_need_insert_or_update(info):
+        logger.info(f"An item has updated (or newly inserted) by dblp: {e.attrib['key']}")
+        manage_an_update(info)
 
 
 def analyze_xml(xml_path: str):
@@ -222,7 +228,10 @@ def analyze_xml(xml_path: str):
             return self.resolve_filename("dblp.dtd", context)
     it = ET.iterparse(xml_path,
                       events=['start', 'end'],
-                      tag=['dblp', 'article', 'inproceedings', 'www'],
+                      tag=['dblp',
+                           'phdthesis', 'book', 'mastersthesis',
+                           'incollection', 'proceedings',
+                           'article', 'inproceedings', 'www'],
                       load_dtd=True)
     it.resolvers.add(DTDResolver())
 
@@ -234,6 +243,8 @@ def analyze_xml(xml_path: str):
         elif event == 'end':
             if elem.tag in ['article', 'inproceedings', 'www']:
                 process_record(elem)
+            if elem.getparent():
+                elem.getparent().clear()
                 elem.clear()
         else:
             logger.error(f"unknown xml sax event: {event}")
@@ -255,8 +266,9 @@ def dblp_analyze_entrance():
 
 if __name__ == '__main__':
     redownload_dtd_if_need()
-    gz_fd, gz_path = download_xml_gz('http://10.1.1.20/dblp.xml.gz')
-    xml_fd, xml_path = decompress_xml_gz(gz_path)
-    clean_tempfile(gz_fd, gz_path)
-    analyze_xml(xml_path)
-    clean_tempfile(xml_fd, xml_path)
+    # gz_fd, gz_path = download_xml_gz('http://nginx/dblp.xml.gz')
+    # xml_fd, xml_path = decompress_xml_gz(gz_path)
+    # clean_tempfile(gz_fd, gz_path)
+    # analyze_xml(xml_path)
+    # clean_tempfile(xml_fd, xml_path)
+    analyze_xml("dblp.xml")
