@@ -274,7 +274,8 @@ def data_manage_of_homepages(info: Dict) -> Dict:
     copied_info['names'] = names_without_postfix_number
     if len(names_without_postfix_number) > 1:
         for n, name in enumerate(names_without_postfix_number):
-            if '.' not in name:
+            if '.' not in name \
+                    and len(name) > len(names_without_postfix_number[0]):
                 if n == 0:
                     break
                 copied_info['names'] = list(names_without_postfix_number)
