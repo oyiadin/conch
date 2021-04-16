@@ -260,13 +260,6 @@ def data_manage_of_homepages(info: Dict) -> Dict:
         copied_info['publtype'] == 'disambiguation'
     del copied_info['publtype']
 
-    streamin_key_candidates = list(filter(lambda x: x.rstrip()[-1].isdigit(),
-                                          copied_info['names']))
-    if len(streamin_key_candidates):
-        copied_info['streamin_key'] = streamin_key_candidates[0]
-    else:
-        copied_info['streamin_key'] = copied_info['names'][0]
-
     copied_info['dblp_homepage'] = urllib.parse.urljoin(
         conf['dblp']['dblp_internal_link'],
         copied_info['key'].replace('homepages', 'pid'))
@@ -275,18 +268,19 @@ def data_manage_of_homepages(info: Dict) -> Dict:
     names_without_postfix_number = [' '.join(
         filter(lambda x: not x.isdigit(), name.split(' ')))
         for name in copied_info['names']]
-    for name in names_without_postfix_number:
-        if '.' not in name:
-            copied_info['full_name'] = name
-            if len(names_without_postfix_number) == 1:
-                copied_info['other_names'] = []
-            else:
-                copied_info['other_names'] = list(names_without_postfix_number)
-                copied_info['other_names'].remove(name)
-            break
-    else:
-        copied_info['full_name'] = names_without_postfix_number[0]
-        copied_info['other_names'] = names_without_postfix_number[1:]
+    copied_info['streamin_keys'] = copied_info['names']
+    del copied_info['names']
+
+    copied_info['names'] = names_without_postfix_number
+    if len(names_without_postfix_number) > 1:
+        for n, name in enumerate(names_without_postfix_number):
+            if '.' not in name:
+                if n == 0:
+                    break
+                copied_info['names'] = list(names_without_postfix_number)
+                copied_info['names'].remove(name)
+                copied_info['names'].insert(0, name)
+                break
     del copied_info['names']
 
     return copied_info

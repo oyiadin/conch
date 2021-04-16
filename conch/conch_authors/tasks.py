@@ -15,9 +15,8 @@ def update_or_insert(
         uname: str = None,
         dblp_homepage: str = None,
         is_disambiguation: bool = None,
-        streamin_key: str = None,
-        full_name: str = None,
-        other_names: List[str] = None,
+        streamin_keys: List[str] = None,
+        names: List[str] = None,
         orcid: str = None):
     # append orcid
     result = t_authors.find_one({'keys.dblp': dblp_key})
