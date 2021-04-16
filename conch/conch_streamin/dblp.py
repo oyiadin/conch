@@ -5,6 +5,7 @@ import os
 import tempfile
 from copy import deepcopy
 from typing import Tuple, Dict
+import urllib.parse
 
 import requests
 import lxml.etree as ET
@@ -43,7 +44,7 @@ def redownload_dtd_if_need(url: str = None):
 
 def download_xml_gz(url: str = None) -> Tuple[int, str]:
     if url is None:
-        url = conf['dblp']['url']
+        url = conf['dblp']['xml_gz_url']
     fd, path = tempfile.mkstemp("streamin.xml.gz", "conch")
     download_file(url, path)
     return fd, path
@@ -218,7 +219,8 @@ def data_manage_of_article_or_inproceedings(info: Dict) -> Dict:
             del copied_info['notes'][n]
             break
     copied_info['doi'] = doi
-    copied_info['ees'].insert(0, copied_info['url'])
+    copied_info['ees'].insert(0, urllib.parse.urljoin(
+        conf['dblp']['dblp_internal_link'], copied_info['url']))
     del copied_info['url']
     del copied_info['mdate']
     copied_info['dblp_key'] = copied_info['key']
