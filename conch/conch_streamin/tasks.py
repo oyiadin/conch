@@ -2,8 +2,8 @@
 
 import requests
 
-from conch_streamin import *
-from conch_streamin.dblp import dblp_analyze_entrance
+from conch.conch_streamin import *
+from conch.conch_streamin.dblp import dblp_analyze_entrance
 
 
 @app.task(name="streamin.analyse_arxiv_database")

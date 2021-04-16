@@ -9,7 +9,7 @@ from typing import Tuple, Dict
 import requests
 import lxml.etree as ET
 
-from conch_streamin import conf, r, logger, t_dblp, app as celery_app
+from conch.conch_streamin import conf, r, logger, t_dblp, app as celery_app
 
 
 def download_file(url: str, path: str) -> str:
@@ -26,6 +26,9 @@ def download_file(url: str, path: str) -> str:
 def redownload_dtd_if_need(url: str = None):
     if url is None:
         url = conf['dblp']['dtd_url']
+    if not os.path.exists(conf['dblp']['dtd_localpath']):
+        download_file(url, conf['dblp']['dtd_localpath'])
+        return
     with requests.head(conf['dblp']['dtd_url']) as resp:
         resp.raise_for_status()
         etag = resp.headers['ETag']
@@ -253,11 +256,11 @@ def data_manage_of_homepages(info: Dict) -> Dict:
 
 def manage_an_update_or_insert(info: Dict):
     if info['type'] == 'article' or info['type'] == 'inproceedings':
-        info = data_manage_of_article_or_inproceedings(info)
-        celery_app.send_task("records.update_or_insert", kwargs=info)
+        managed_info = data_manage_of_article_or_inproceedings(info)
+        celery_app.send_task("records.update_or_insert", kwargs=managed_info)
     elif info['type'] == 'homepage':
-        info = data_manage_of_homepages(info)
-        celery_app.send_task("authors.update_or_insert", kwargs=info)
+        managed_info = data_manage_of_homepages(info)
+        celery_app.send_task("authors.update_or_insert", kwargs=managed_info)
     else:
         raise ValueError(f"unknown item type: {info['type']}")
     # update redis mdate and db mdate

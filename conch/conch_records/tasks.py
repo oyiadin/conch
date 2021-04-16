@@ -1,9 +1,9 @@
 # coding=utf-8
 
 from typing import List, Dict, Literal
-import conch_records.utils as utils
+import conch.conch_records.utils as utils
 
-from conch_records import *
+from conch.conch_records import *
 
 
 def _get_update_operations__clever(document: Dict, **updates) -> Dict:

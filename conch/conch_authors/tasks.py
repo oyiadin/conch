@@ -4,7 +4,7 @@ import urllib.parse
 
 import requests
 
-from conch_authors import *
+from conch.conch_authors import *
 
 
 @app.task(name="authors.add")
