@@ -43,7 +43,7 @@ def _get_update_operations__clever(document: Dict, **updates) -> Dict:
 def update_or_insert(
         type: Literal["article", "inproceedings"] = None,
         title: str = None,
-        authors: List[Dict[Literal["key", "orcid"], str]] = None,
+        authors: List[Dict[Literal["streamin_key", "orcid"], str]] = None,
         dblp_key: str = None,
         booktitle: str = None,
         journal: str = None,

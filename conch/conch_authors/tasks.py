@@ -1,5 +1,5 @@
 # coding=utf-8
-from typing import List, Dict
+from typing import List, Dict, Literal
 import urllib.parse
 
 import requests
@@ -7,13 +7,19 @@ import requests
 from conch.conch_authors import *
 
 
-@app.task(name="authors.add")
-def add(full_name: str,
-        dblp_key: str,
+@app.task(name="authors.update_or_insert")
+def update_or_insert(
+        urls: List[Dict[Literal["type", "text"], str]] = None,
+        affiliations: List[Dict[Literal["label", "text"], str]] = None,
+        awards: List[Dict[Literal["label", "text"], str]] = None,
+        uname: str = None,
+        dblp_homepage: str = None,
+        is_disambiguation: bool = None,
+        streamin_key: str = None,
+        full_name: str = None,
         other_names: List[str] = None,
-        urls: List[str] = None,
-        affiliations: List[Dict] = None,
         orcid: str = None):
+    # append orcid
     result = t_authors.find_one({'keys.dblp': dblp_key})
     if result:
         logger.info(f"author of dblp_key {dblp_key} already existed")

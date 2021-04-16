@@ -157,7 +157,9 @@ def extract_useful_information(e: ET._Element) -> Dict:
 
     elif e.tag == 'www':
         publtype = e.attrib.get('publtype', '')
-        name = ' '.join(next(e.iterchildren('author')).itertext())
+        names = []
+        for item in e.iterchildren(tag='author'):
+            names.append(' '.join(item.itertext()))
         notes = []
         for item in e.iterchildren(tag='note'):
             type = item.attrib.get('type', '')
@@ -175,7 +177,7 @@ def extract_useful_information(e: ET._Element) -> Dict:
 
         return {
             'type': 'homepage',
-            'name': name,
+            'names': names,
             'key': key,
             'urls': urls,
             'mdate': mdate,
@@ -222,6 +224,9 @@ def data_manage_of_article_or_inproceedings(info: Dict) -> Dict:
     copied_info['ees'].insert(0, urllib.parse.urljoin(
         conf['dblp']['dblp_internal_link'], copied_info['url']))
     del copied_info['url']
+    for author in info['authors']:  # rename author.key to author.streamin_key
+        author['streamin_key'] = author['key']
+        del author['key']
     del copied_info['mdate']
     copied_info['dblp_key'] = copied_info['key']
     del copied_info['key']
@@ -250,8 +255,39 @@ def data_manage_of_homepages(info: Dict) -> Dict:
     copied_info['uname'] = uname
     del copied_info['mdate']
     del copied_info['type']
-    copied_info['dblp_key'] = copied_info['key']
+
+    copied_info['is_disambiguation'] = \
+        copied_info['publtype'] == 'disambiguation'
+    del copied_info['publtype']
+
+    streamin_key_candidates = list(filter(lambda x: x.rstrip()[-1].isdigit(),
+                                          copied_info['names']))
+    if len(streamin_key_candidates):
+        copied_info['streamin_key'] = streamin_key_candidates[0]
+    else:
+        copied_info['streamin_key'] = copied_info['names'][0]
+
+    copied_info['dblp_homepage'] = urllib.parse.urljoin(
+        conf['dblp']['dblp_internal_link'],
+        copied_info['key'].replace('homepages', 'pid'))
     del copied_info['key']
+
+    names_without_postfix_number = [' '.join(
+        filter(lambda x: not x.isdigit(), name.split(' ')))
+        for name in copied_info['names']]
+    for name in names_without_postfix_number:
+        if '.' not in name:
+            copied_info['full_name'] = name
+            if len(names_without_postfix_number) == 1:
+                copied_info['other_names'] = []
+            else:
+                copied_info['other_names'] = list(names_without_postfix_number)
+                copied_info['other_names'].remove(name)
+            break
+    else:
+        copied_info['full_name'] = names_without_postfix_number[0]
+        copied_info['other_names'] = names_without_postfix_number[1:]
+    del copied_info['names']
 
     return copied_info
 
