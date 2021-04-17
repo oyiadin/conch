@@ -16,4 +16,3 @@ app.config_from_object('conch.celeryconfig')
 
 dbclient = pymongo.MongoClient(conf['db']['url'])
 db = dbclient[conf['db']['db_name']]  # type: pymongo.database.Database
-
