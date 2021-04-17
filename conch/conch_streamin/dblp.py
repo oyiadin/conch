@@ -4,7 +4,7 @@ import gzip
 import os
 import tempfile
 from copy import deepcopy
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Literal
 import urllib.parse
 
 import requests
@@ -33,7 +33,7 @@ def redownload_dtd_if_need(url: str = None):
     with requests.head(conf['dblp']['dtd_url']) as resp:
         resp.raise_for_status()
         etag = resp.headers['ETag']
-        last_etag = r.get('dblp_dtd_last_etag').decode()
+        last_etag = (r.get('dblp_dtd_last_etag') or b'').decode()
         if last_etag and etag == last_etag:
             logger.debug("no need to re-download the dtd file")
         else:
@@ -189,7 +189,7 @@ def extract_useful_information(e: ET._Element) -> Dict:
         raise ValueError(f"unknown tag type: {e.tag}")
 
 
-def check_if_need_insert_or_update(info: Dict) -> bool:
+def check_if_need_insert_or_update(info: Dict) -> Literal["", "insert", "update"]:
     type = info['type']
     key = info['key']
     mdate = info['mdate']
@@ -199,11 +199,13 @@ def check_if_need_insert_or_update(info: Dict) -> bool:
     else:
         dblp_item = t_dblp.find_one({'key': key})
         if dblp_item is None:
-            return True  # needed to be inserted
+            return "insert" # needed to be inserted
         last_mdate = dblp_item['mdate']
         r.set(f'dblp_{type}_{key}', mdate)  # TODO: 这个副作用放这不太好
 
-    return mdate != last_mdate
+    if mdate != last_mdate:
+        return "update"
+    return ""
 
 
 
@@ -282,7 +284,6 @@ def data_manage_of_homepages(info: Dict) -> Dict:
                 copied_info['names'].remove(name)
                 copied_info['names'].insert(0, name)
                 break
-    del copied_info['names']
 
     return copied_info
 
@@ -319,8 +320,16 @@ def process_record(e: ET._Element):
             return  # do not handle it
 
     info = extract_useful_information(e)
-    if check_if_need_insert_or_update(info):
-        logger.info(f"An item has updated (or newly inserted) by dblp: {e.attrib['key']}")
+    if e.tag == 'article' or e.tag == 'inproceedings':
+        if not info['url']:
+            return
+
+    need_action = check_if_need_insert_or_update(info)
+    if need_action == "update":
+        logger.info(f"An item has updated by dblp: {e.attrib['key']}")
+        manage_an_update_or_insert(info)
+    elif need_action == "insert":
+        logger.info(f"An item has newly inserted by dblp: {e.attrib['key']}")
         manage_an_update_or_insert(info)
 
 

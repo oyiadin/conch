@@ -2,24 +2,35 @@
   "authors": [
     {
       "_id": "the internel author id",
-      "keys": {
-        "dblp": "dblp key",
-        "orcid": "orcid key",
+      "names": ["name1", "name2"],
+      "uname": "",
+      "orcid_name": {
+        "given_names": "",
+        "family_name": ""
       },
-      "name": {
-        "full_name": "full name, given name first then family name, always exist",
-        "given_names": "given names parsed and got from orcid",
-        "family_name": "family name parsed and got from orcid",
-        "other_names": ["xxxx"]
-      },
-      "bio": "xxxx",
-      "urls": ["xxx"],
       "affiliations": [
         {
-          "name": "China University",
-          "label": "Phd"
+          "label": "",
+          "text": ""
         }
-      ]
+      ],
+      "urls": [
+        {
+          "type": "",
+          "text": "http://chenxy.me"
+        }
+      ],
+      "awards": [
+        {
+          "label": "",
+          "text": ""
+        }
+      ],
+      "biography": "",
+      "dblp_homepage": "[always exists] https://dblp.org/pid/xxx",
+      "is_disambiguation": "true or false or null",
+      "streamin_keys": [],
+      "orcid": []
     }
   ]
 }
