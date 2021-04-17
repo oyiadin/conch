@@ -6,7 +6,6 @@ import celery
 import pymongo
 import pymongo.database
 import redis
-from loguru import logger
 
 
 conf = configparser.ConfigParser()

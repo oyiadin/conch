@@ -1,12 +1,11 @@
 # coding=utf-8
 
 import configparser
+import logging
 
 import celery
 import pymongo
 import pymongo.database
-from loguru import logger
-
 
 conf = configparser.ConfigParser()
 conf.read_file(open("conch/config.ini"))

@@ -1,14 +1,22 @@
 # coding=utf-8
 import copy
 import gzip
+import json
+import logging
 import os
 import tempfile
 import urllib.parse
 from os import PathLike
 from typing import Optional, Tuple, Dict, Literal
 
+from celery.utils.log import get_task_logger
+
 from conch.conch_streamin import *
 from conch.conch_streamin.utils import *
+
+
+logger = get_task_logger(__name__)  # type: logging.Logger
+logger.setLevel(conf['log']['level'])
 
 
 def download_dblp_dtd(url: str = None) -> str:
@@ -16,7 +24,9 @@ def download_dblp_dtd(url: str = None) -> str:
         url = conf['dblp']['dtd_url']
     fd, path = tempfile.mkstemp("streamin.dtd", "conch")
     os.close(fd)
-    return download(url, path)
+    to_path = download(url, path)
+    logger.info("Downloaded dblp.dtd from %s to %s", url, to_path)
+    return to_path
 
 
 def download_dblp_xml_gz(url: str = None) -> str:
@@ -24,18 +34,25 @@ def download_dblp_xml_gz(url: str = None) -> str:
         url = conf['dblp']['xml_gz_url']
     fd, path = tempfile.mkstemp("streamin.xml.gz", "conch")
     os.close(fd)
-    return download(url, path)
+    to_path = download(url, path)
+    logger.info("Downloaded dblp.xml.gz from %s to %s", url, to_path)
+    return to_path
 
 
 @app.task(name="streamin.fetch_dblp")
 def fetch_dblp(then_analyze: bool = False) -> Optional[Tuple[str, str]]:
     last_etag = r.get('dblp_last_xml_gz_etag')
+    if last_etag is not None:
+        last_etag = last_etag.decode()
     with requests.head(conf['dblp']['xml_gz_url']) as response:
         etag = response.headers['ETag']
+        logger.debug("ETag of dblp.xml.gz: %s -> %s", last_etag, etag)
         if last_etag and etag == last_etag:
-            logger.info("dblp etag not changed, stopping fetching")
+            logger.info("ETag of dblp.xml.gz hasn't changed, "
+                        "stopping task fetch_dblp")
         else:
             r.set('dblp_last_xml_gz_etag', etag)
+            logger.info("Inspected ETag change of dblp.xml.gz")
             dtd_path = download_dblp_dtd()
             xml_gz_path = download_dblp_xml_gz()
 
@@ -51,11 +68,15 @@ def decompress_xml_gz(xml_gz_path: PathLike, to_path: PathLike = None) -> str:
     with gzip.open(xml_gz_path, 'rb') as fr:
         with open(to_path, 'wb') as fw:
             chunk_size = int(conf['network']['chunk_size'])
+            logger.debug(
+                "Decompressing dblp.xml.gz with chunk_size=%d: %s -> %s",
+                chunk_size, xml_gz_path, to_path)
             while True:
                 chunk = fr.read(chunk_size)
                 if chunk:
                     fw.write(chunk)
                 else: break
+    logger.info("Extracted dblp.XML out of dblp.xml.GZ to %s", to_path)
     return to_path
 
 
@@ -114,7 +135,7 @@ def extract_info(e: ET._Element) -> Dict:
         else:  # inproceedings
             booktitle = ' '.join(next(e.iterchildren('booktitle')).itertext())
 
-        return {
+        ret = {
             'type': e.tag,
             'title': title,
             'key': key,
@@ -150,7 +171,7 @@ def extract_info(e: ET._Element) -> Dict:
             urls.append({'type': type, 'text': content})
         # <ee> is useless in most of the homepages
 
-        return {
+        ret = {
             'type': 'homepage',
             'names': names,
             'key': key,
@@ -162,6 +183,9 @@ def extract_info(e: ET._Element) -> Dict:
 
     else:
         raise ValueError(f"unknown tag type: {e.tag}")
+
+    logger.debug("Extracted information: %s", json.dumps(ret))
+    return ret
 
 
 def is_valuable(e: ET._Element, info: Dict) -> bool:
@@ -187,10 +211,11 @@ def is_valuable(e: ET._Element, info: Dict) -> bool:
 
 @app.task(name="streamin.analyze_dblp")
 def analyze_dblp(dtd_path: PathLike, xml_gz_path: PathLike):
-    last_ended = r.get('dblp_last_analyze_ended')
-    if not last_ended:
-        logger.error("The last dblp dump task has not finished yet")
+    last_started = r.get('dblp_last_analyze_started')
+    if last_started:
+        logger.error("The last analyze_dblp task has not finished yet")
         return
+    r.set('dblp_last_analyze_started', 1)
 
     xml_path = decompress_xml_gz(xml_gz_path)
 
@@ -220,15 +245,20 @@ def analyze_dblp(dtd_path: PathLike, xml_gz_path: PathLike):
                         process_record.delay(info)
                     else:  # homepage
                         process_homepage.delay(info)
+                else:
+                    logger.debug("One element was ignored with key=%s",
+                                 info['key'])
             parent = elem.getparent()
             if parent:
                 parent.clear()
             elem.clear()
         else:
-            logger.error(f"unknown xml sax event: {event}")
+            raise ValueError(f"Unknown SAX event: {event}")
 
+    r.delete('dblp_last_analyze_started')
     os.remove(xml_gz_path)
     os.remove(xml_path)
+    logger.debug("Removed useless files: %s; %s", xml_gz_path, xml_path)
 
 
 def match_action(type: Literal["article", "inproceedings", "homepage"],
@@ -237,13 +267,19 @@ def match_action(type: Literal["article", "inproceedings", "homepage"],
     cached_mdate = r.get(logged_key)
     if cached_mdate is not None:
         last_mdate = cached_mdate.decode()
+        logger.debug(
+            "Sucessfully fetched the cached mdate of %s from redis: %s",
+            logged_key, cached_mdate)
     else:
+        logger.debug("Failed to fetch the mdate of %s from redis", logged_key)
         dblp_item = t_dblp.find_one({'key': logged_key})
         if dblp_item is None:
+            logger.debug("The action of %s is INSERT", logged_key)
             return "insert"
         last_mdate = dblp_item['mdate']
 
     if mdate != last_mdate:
+        logger.debug("The action of %s is UPDATE", logged_key)
         return "update"
 
 
@@ -285,13 +321,14 @@ def process_record(info: Dict):
     assert info['type'] in ['article', 'inproceedings']
 
     type, key, mdate = info['type'], info['key'], info['mdate']
+    logged_key = f'dblp_{type}_{key}'
     action = match_action(type, key, mdate)
 
     if action:
-        logged_key = f'dblp_{type}_{key}'
         r.set(logged_key, mdate)
 
         doc = translate_record(info)
+        logger.debug("Translated record: %s", json.dumps(doc))
 
         task_name = "records.insert" if action == 'insert' else "records.update"
         app.send_task(task_name, kwargs=doc)
@@ -299,6 +336,11 @@ def process_record(info: Dict):
         t_dblp.update_one(
             {'key': logged_key}, {'$set': {'mdate': mdate}}, upsert=True)
         r.set(logged_key, mdate)
+
+        logger.info("A record processed: %s", logged_key)
+
+    else:
+        logger.debug("No need to process the record %s", logged_key)
 
 
 def translate_homepage(info: Dict) -> Dict:
@@ -357,13 +399,14 @@ def process_homepage(info: Dict):
     assert info['type'] == 'homepage'
 
     type, key, mdate = info['type'], info['key'], info['mdate']
+    logged_key = f'dblp_{type}_{key}'
     action = match_action(type, key, mdate)
 
     if action:
-        logged_key = f'dblp_{type}_{key}'
         r.set(logged_key, mdate)
 
         doc = translate_homepage(info)
+        logger.debug("Translated homepage: %s", json.dumps(doc))
 
         task_name = "authors.insert" if action == 'insert' else "authors.update"
         app.send_task(task_name, kwargs=doc)
@@ -371,3 +414,8 @@ def process_homepage(info: Dict):
         t_dblp.update_one(
             {'key': logged_key}, {'$set': {'mdate': mdate}}, upsert=True)
         r.set(logged_key, mdate)
+
+        logger.info("A homepage processed: %s", logged_key)
+
+    else:
+        logger.debug("No need to process the homepage %s", logged_key)
