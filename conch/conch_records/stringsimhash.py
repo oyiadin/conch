@@ -7,14 +7,14 @@ from marshmallow import fields
 
 
 class StringSimhash:
-    MASK_PART0 = 0xffff << 48
-    MASK_PART1 = 0xffff << 32
-    MASK_PART2 = 0xffff << 16
-    MASK_PART3 = 0xffff
-    SHIFT_RIGHT0 = 48
-    SHIFT_RIGHT1 = 32
-    SHIFT_RIGHT2 = 16
-    SHIFT_RIGHT3 = 0
+    MASK_PART0 = 0xffff        # LSB
+    MASK_PART1 = 0xffff << 16  #  ^
+    MASK_PART2 = 0xffff << 32  #  |
+    MASK_PART3 = 0xffff << 48  # MSB
+    SHIFT_RIGHT0 = 0
+    SHIFT_RIGHT1 = 16
+    SHIFT_RIGHT2 = 32
+    SHIFT_RIGHT3 = 48
 
     def __init__(self, value: str,
                  hash_parts: typing.List[int] = None):

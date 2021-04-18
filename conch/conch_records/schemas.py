@@ -2,12 +2,12 @@
 
 from marshmallow import fields, validate
 
-from conch.base_schema import StripEmptySchema
+from conch.base_schema import StripEmptySchema, ObjectIdField
 from conch.conch_records.stringsimhash import StringSimhashField
 
 
 class RecordSchema(StripEmptySchema):
-    _id = fields.String(load_only=True)
+    _id = ObjectIdField(load_only=True)
     type = fields.String(validate=validate.OneOf(["article", "inproceedings"]))
     title = StringSimhashField()
     authors = fields.List(

@@ -1,6 +1,20 @@
 # coding=utf-8
+from typing import Any, Optional, Mapping
 
-from marshmallow import Schema, pre_load
+from bson import ObjectId
+from marshmallow import Schema, pre_load, fields
+
+
+__all__ = ['ObjectIdField', 'StripEmptySchema']
+
+
+class ObjectIdField(fields.Field):
+    def _serialize(self, value: ObjectId, attr: str, obj: Any, **kwargs):
+        return str(value)
+
+    def _deserialize(self, value: str, attr: Optional[str],
+                     data: Optional[Mapping[str, Any]], **kwargs):
+        return ObjectId(value)
 
 
 class StripEmptySchema(Schema):

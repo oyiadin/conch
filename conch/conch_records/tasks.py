@@ -3,8 +3,7 @@
 from typing import Dict, Literal, Optional
 
 from bson import ObjectId
-
-import conch.conch_records.utils as utils
+from marshmallow import EXCLUDE
 
 from conch.conch_records import *
 from conch.conch_records.schemas import *
@@ -34,6 +33,8 @@ def translate_to_db_operations(document: Dict, updates: Dict) -> Dict:
     schema = RecordSchema(only=['title', 'authors', 'booktitle', 'volume',
                                 'doi', 'ees', 'year', 'pages', 'notes',
                                 'abstract'],
+                          exclude=['_id', 'type', 'dblp_key'],
+                          unknown=EXCLUDE,
                           context={'to': 'db'})
     loaded_document = schema.load(document)
     loaded_updates = schema.load(updates)
@@ -71,7 +72,9 @@ def translate_to_db_operations(document: Dict, updates: Dict) -> Dict:
     if sets:
         ret['$set'] = sets
     if pushes:
-        ret['$push'] = pushes
+        ret['$push'] = {}
+        for key, values in pushes.items():
+            ret['$push'][key] = {'$each': values}
     return ret
 
 
@@ -79,7 +82,7 @@ def find_similar_record(according_to: str, target_value: StringSimhash,
                         distance_tolerance: int = 3) -> Optional[Dict]:
     schema = RecordSchema()
     similar_records = t_records.find({
-        '$or': [{f'{according_to}.simhash{n}': target_value} for n in range(4)]
+        '$or': [{f'{according_to}.simhash{n}': target_value[n]} for n in range(4)]
     })
     for record in similar_records:
         loaded_record = schema.load(record)
@@ -93,13 +96,13 @@ def update_if_found(similar_field: Literal["abstract", "title"],
                     record: Dict, dumped: Dict) -> bool:
     if similar_field in record and record[similar_field]:
         logger.debug(f"Finding similar records with {similar_field}: "
-                     f"{record['abstract'][:64]}")
+                     f"{str(record[similar_field])[:64]}")
         similar_record = find_similar_record(similar_field,
                                              record[similar_field])
         if similar_record is not None:
             logger.debug(f"A similar record was found according to "
                          f"{similar_field}: {similar_record['dblp_key']} - "
-                         f"{similar_record[similar_field]!s}")
+                         f"{str(similar_record[similar_field])[:64]}")
             db_operations = translate_to_db_operations(similar_record, dumped)
             t_records.update_one({'_id': ObjectId(similar_record['_id'])},
                                  db_operations)
@@ -132,5 +135,9 @@ def update(doc: Dict):
 
         assert is_updated, f"No any records found in the database with " \
                            f"similar abstract or title: " \
-                           f"<Title {record.get('title', '')[:20]}> " \
-                           f"<Abstract {record.get('abstract', '')[:20]}>"
+                           f"<Title {str(record.get('title', ''))[:20]}> " \
+                           f"<Abstract {str(record.get('abstract', ''))[:20]}>"
+
+
+if __name__ == '__main__':
+    find_similar_record('title', StringSimhash('Performance Impact of New Interface for Non-volatile Memory Storage'))
