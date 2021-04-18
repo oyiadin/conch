@@ -15,14 +15,7 @@ def simhash(x: Any) -> int:
     return Simhash(x).value
 
 
-def _distance(v1: int, v2: int, length: int = 64) -> int:
-    """calculate the hamming distance of two integers (hashes)"""
-    x = (v1 ^ v2) & ((1 << length) - 1)
-    ans = 0
-    while x:
-        ans += 1
-        x &= x - 1
-    return ans
+
 
 
 def _int_list_to_large_int(ints: Iterable[int], step=16) -> int:
