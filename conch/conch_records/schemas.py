@@ -19,8 +19,8 @@ class RecordSchema(StripEmptySchema):
     booktitle = fields.String()
     journal = fields.String()
     volume = fields.String()
-    doi = fields.String()
-    ees = fields.List(fields.URL(), )
+    doi = fields.URL()
+    ees = fields.List(fields.URL())
     year = fields.String()
     pages = fields.String()
     notes = fields.List(

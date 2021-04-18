@@ -1,16 +1,20 @@
 # coding=utf-8
 
 import configparser
+import logging
 
 import celery
 import pymongo
 import pymongo.database
 import redis
-
+from celery.utils.log import get_task_logger
 
 conf = configparser.ConfigParser()
 conf.read_file(open("conch/config.ini"))
 conf.read_file(open("conch/conch_streamin/config.ini"))
+
+logger = get_task_logger(__name__)  # type: logging.Logger
+logger.setLevel(conf['log']['level'])
 
 dbclient = pymongo.MongoClient(conf['db']['url'])
 db = dbclient[conf['db']['db_name']]  # type: pymongo.database.Database

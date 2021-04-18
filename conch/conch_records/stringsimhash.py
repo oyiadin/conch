@@ -11,6 +11,10 @@ class StringSimhash:
     MASK_PART1 = 0xffff << 32
     MASK_PART2 = 0xffff << 16
     MASK_PART3 = 0xffff
+    SHIFT_RIGHT0 = 48
+    SHIFT_RIGHT1 = 32
+    SHIFT_RIGHT2 = 16
+    SHIFT_RIGHT3 = 0
 
     def __init__(self, value: str,
                  hash_parts: typing.List[int] = None):
@@ -22,11 +26,18 @@ class StringSimhash:
             self.hash = self._combine_hash_parts(hash_parts)
             self.hash_parts = hash_parts
 
-    def __sub__(self, other: 'StringSimhash'):
+    def __sub__(self, other: 'StringSimhash') -> int:
         return self.distance(self.hash, other.hash)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
+
+    def __hash__(self) -> int:
+        return self.hash
+
+    def __getitem__(self, item) -> int:
+        assert isinstance(item, int)
+        return self.hash_parts[item]
 
     @staticmethod
     def load_from_dict(doc: typing.Dict):
@@ -60,10 +71,10 @@ class StringSimhash:
     @staticmethod
     def _split_simhash(hash: int) -> typing.List[int]:
         return [
-            StringSimhash.MASK_PART0 & hash,
-            StringSimhash.MASK_PART1 & hash,
-            StringSimhash.MASK_PART2 & hash,
-            StringSimhash.MASK_PART3 & hash
+            (StringSimhash.MASK_PART0 & hash) >> StringSimhash.SHIFT_RIGHT0,
+            (StringSimhash.MASK_PART1 & hash) >> StringSimhash.SHIFT_RIGHT1,
+            (StringSimhash.MASK_PART2 & hash) >> StringSimhash.SHIFT_RIGHT2,
+            (StringSimhash.MASK_PART3 & hash) >> StringSimhash.SHIFT_RIGHT3,
         ]
 
     @staticmethod

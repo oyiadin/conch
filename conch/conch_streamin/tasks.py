@@ -2,21 +2,14 @@
 import copy
 import gzip
 import json
-import logging
 import os
 import tempfile
 import urllib.parse
 from os import PathLike
 from typing import Optional, Tuple, Dict, Literal
 
-from celery.utils.log import get_task_logger
-
 from conch.conch_streamin import *
 from conch.conch_streamin.utils import *
-
-
-logger = get_task_logger(__name__)  # type: logging.Logger
-logger.setLevel(conf['log']['level'])
 
 
 def download_dblp_dtd(url: str = None) -> str:
@@ -249,7 +242,7 @@ def analyze_dblp(dtd_path: PathLike, xml_gz_path: PathLike):
                     logger.debug("One element was ignored with key=%s",
                                  info['key'])
             parent = elem.getparent()
-            if parent:
+            if parent is not None:
                 parent.clear()
             elem.clear()
         else:
@@ -271,7 +264,7 @@ def match_action(type: Literal["article", "inproceedings", "homepage"],
             "Sucessfully fetched the cached mdate of %s from redis: %s",
             logged_key, cached_mdate)
     else:
-        logger.debug("Failed to fetch the mdate of %s from redis", logged_key)
+        logger.debug("Cannot fetch the mdate of %s from redis", logged_key)
         dblp_item = t_dblp.find_one({'key': logged_key})
         if dblp_item is None:
             logger.debug("The action of %s is INSERT", logged_key)
@@ -337,7 +330,7 @@ def process_record(info: Dict):
         logger.debug("Translated record: %s", json.dumps(doc))
 
         task_name = "records.insert" if action == 'insert' else "records.update"
-        app.send_task(task_name, kwargs=doc)
+        app.send_task(task_name, args=(doc,))
 
         t_dblp.update_one(
             {'key': logged_key}, {'$set': {'mdate': mdate}}, upsert=True)
@@ -415,7 +408,7 @@ def process_homepage(info: Dict):
         logger.debug("Translated homepage: %s", json.dumps(doc))
 
         task_name = "authors.insert" if action == 'insert' else "authors.update"
-        app.send_task(task_name, kwargs=doc)
+        app.send_task(task_name, args=(doc,))
 
         t_dblp.update_one(
             {'key': logged_key}, {'$set': {'mdate': mdate}}, upsert=True)
