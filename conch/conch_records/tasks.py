@@ -137,7 +137,3 @@ def update(doc: Dict):
                            f"similar abstract or title: " \
                            f"<Title {str(record.get('title', ''))[:20]}> " \
                            f"<Abstract {str(record.get('abstract', ''))[:20]}>"
-
-
-if __name__ == '__main__':
-    find_similar_record('title', StringSimhash('Performance Impact of New Interface for Non-volatile Memory Storage'))
