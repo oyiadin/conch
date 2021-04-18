@@ -1,9 +1,19 @@
 # coding=utf-8
 
-from typing import List, Dict, Literal
+from typing import Dict
 import conch.conch_records.utils as utils
 
 from conch.conch_records import *
+from conch.conch_records.schemas import *
+
+
+@app.task(name='records.insert')
+def insert(doc: Dict):
+    schema = RecordSchema(context={'to': 'db'})
+    record = schema.load(doc)
+    dumped = schema.dump(record)
+    logger.debug('Inserting a new record into database: %s', str(dumped))
+    t_records.insert_one(dumped)
 
 
 def _get_update_operations__clever(document: Dict, **updates) -> Dict:
@@ -39,24 +49,13 @@ def _get_update_operations__clever(document: Dict, **updates) -> Dict:
     return operations
 
 
-@app.task(name='records.update_or_insert')
-def update_or_insert(
-        type: Literal["article", "inproceedings"] = None,
-        title: str = None,
-        authors: List[Dict[Literal["streamin_key", "orcid"], str]] = None,
-        dblp_key: str = None,
-        booktitle: str = None,
-        journal: str = None,
-        volume: str = None,
-        doi: str = None,
-        ees: List[str] = None,
-        year: str = None,
-        pages: str = None,
-        notes: str = None,
-        abstract: str = None):
+@app.task(name='records.update')
+def update(doc: Dict):
+    record = RecordSchema(partial=True, context={'to': 'db'}).load(doc).dump()
 
-    if not dblp_key:  # then find similar articles and (maybe) update it
-        logger.debug(f'finding similar records with title {title}')
+    if not record['dblp_key']:
+        # then find similar articles according to its abstract or title
+        logger.debug(f"Finding similar records with title {record['title']}")
         similar_article = utils.find_similar(t_records, title)
         # if make_unique is enabled and we've found a similar article,
         # then just update it cleverly
@@ -103,3 +102,5 @@ def update_or_insert(
     }
     logger.debug('inserting a new record in the db: ' + str(data))
     t_records.insert_one(data)
+
+

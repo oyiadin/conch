@@ -303,15 +303,21 @@ def translate_record(info: Dict) -> Dict:
                                               doc['url']))
     del doc['url']
 
-    # rename author.key to author.streamin_key
+    # 1. rename author.key to author.streamin_key
+    # 2. add a field 'name' for number-suffix-stripped name
     for author in doc['authors']:
         author['streamin_key'] = author['key']
+        purified_name = ' '.join(filter(lambda x: not x.isdigit(),
+                                        author['key'].split(' ')))
+        author['name'] = purified_name
         del author['key']
 
     del doc['mdate']
 
     doc['dblp_key'] = doc['key']
     del doc['key']
+
+    doc['abstract'] = ''
 
     return doc
 
