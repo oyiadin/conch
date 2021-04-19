@@ -50,22 +50,21 @@ def translate_to_db_operations(document: Dict, updates: Dict) -> Dict:
                 key_inside = {'authors': 'streamin_key',
                               'notes': 'text'}[k]
                 pushes[k] = []
-                for new_author in v:
-                    for old_author in document.get(k, []):
-                        if (new_author[key_inside]
-                                == old_author[key_inside]):
+                for new_item in v:
+                    for old_item in loaded_document.get(k, []):
+                        if new_item[key_inside] == old_item[key_inside]:
                             break
                     else:
-                        pushes[k].append(new_author)
+                        pushes[k].append(new_item)
                 if not pushes[k]:
                     del pushes[k]
             elif k == 'ees':
                 ees = list(filter(
-                    lambda x: x not in document.get('ees', []), v))
+                    lambda x: x not in loaded_document.get('ees', []), v))
                 if ees:
                     pushes['ees'] = ees
         else:  # String
-            if v != document.get(k):
+            if v != loaded_document.get(k):
                 sets[k] = v
 
     ret = {}

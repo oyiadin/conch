@@ -2,7 +2,6 @@
 
 import configparser
 import logging
-import os
 
 import celery
 import pymongo
