@@ -1,7 +1,7 @@
 # coding=utf-8
 from marshmallow import fields, validate
 
-from conch.base_schema import StripEmptySchema, ObjectIdField
+from celery_workers.base_schema import StripEmptySchema, ObjectIdField
 
 
 class AuthorSchema(StripEmptySchema):
@@ -19,7 +19,7 @@ class AuthorSchema(StripEmptySchema):
         values=fields.String()))
     dblp_homepage = fields.URL()
     is_disambiguation = fields.Boolean()
-    streamin_keys = fields.List(fields.String())
+    datafeeder_keys = fields.List(fields.String())
     orcids = fields.List(fields.Dict(
         keys=fields.String(validate=validate.OneOf([
             "value", "given_names", "family_name", "biography"])),

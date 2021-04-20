@@ -2,8 +2,8 @@
 
 from marshmallow import fields, validate
 
-from conch.base_schema import StripEmptySchema, ObjectIdField
-from conch.conch_records.stringsimhash import StringSimhashField
+from celery_workers.base_schema import StripEmptySchema, ObjectIdField
+from celery_workers.records.stringsimhash import StringSimhashField
 
 
 class RecordSchema(StripEmptySchema):
@@ -13,7 +13,7 @@ class RecordSchema(StripEmptySchema):
     authors = fields.List(
         fields.Dict(
             keys=fields.String(
-                validate=validate.OneOf(["streamin_key", "name", "orcid"])),
+                validate=validate.OneOf(["datafeeder_key", "name", "orcid"])),
             values=fields.String()))
     dblp_key = fields.String()
     booktitle = fields.String()

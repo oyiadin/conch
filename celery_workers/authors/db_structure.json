@@ -29,7 +29,7 @@
       "biography": "",
       "dblp_homepage": "[always exists] https://dblp.org/pid/xxx",
       "is_disambiguation": "true or false or null",
-      "streamin_keys": [],
+      "datafeeder_keys": [],
       "orcid": []
     }
   ]

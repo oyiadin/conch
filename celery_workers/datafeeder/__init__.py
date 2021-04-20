@@ -10,8 +10,8 @@ import redis
 from celery.utils.log import get_task_logger
 
 conf = configparser.ConfigParser()
-conf.read_file(open("conch/config.ini"))
-conf.read_file(open("conch/conch_streamin/config.ini"))
+conf.read_file(open("celery_workers/global-config.ini"))
+conf.read_file(open("celery_workers/datafeeder/config.ini"))
 
 logger = get_task_logger(__name__)  # type: logging.Logger
 logger.setLevel(conf['log']['level'])
@@ -26,5 +26,5 @@ r = redis.Redis(host=conf['redis']['host'],
                 port=conf['redis']['port'],
                 db=conf['redis']['db'])
 
-app = celery.Celery("conch_streamin", broker=conf['mq']['url'])
-app.config_from_object('conch.celeryconfig')
+app = celery.Celery("datafeeder", broker=conf['mq']['url'])
+app.config_from_object('celery_workers.celeryconfig')

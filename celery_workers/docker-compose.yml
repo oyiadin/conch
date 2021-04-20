@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  task-beater:
+    build:
+      context: .
+      dockerfile: task-beater.dockerfile
+    networks:
+      - net
+  datafeeder:
+    build:
+      context: .
+      dockerfile: datafeeder.dockerfile
+    networks:
+      - net
+  conch_records:
+    build:
+      context: .
+      dockerfile: records.dockerfile
+    networks:
+      - net
+  conch_authors:
+    build:
+      context: .
+      dockerfile: authors.dockerfile
+    networks:
+      - net
+
+networks:
+  net:
+    driver: bridge

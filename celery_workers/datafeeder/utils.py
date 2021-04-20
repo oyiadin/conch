@@ -2,7 +2,7 @@
 import lxml.etree as ET
 import requests
 
-from conch.conch_streamin import conf
+from celery_workers.datafeeder import conf
 
 
 def download(url: str, path: str) -> str:

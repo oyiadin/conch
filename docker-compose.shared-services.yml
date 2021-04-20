@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  mq:
+    image: rabbitmq:management
+    ports:
+      - 15672:15672
+      - 5672:5672
+    networks:
+      - celery_workers_net
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    networks:
+      - celery_workers_net
+  mongo:
+    image: mongo
+    ports:
+      - 27017:27017
+    networks:
+      - mongo-express
+      - celery_workers_net
+  mongo-express:
+    image: mongo-express
+    ports:
+      - 8081:8081
+    networks:
+      - mongo-express
+    depends_on:
+      - mongo
+
+networks:
+  mongo-express:
+    driver: bridge
+  celery_workers_net:
+    external: true

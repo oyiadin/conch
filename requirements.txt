@@ -1,0 +1,7 @@
+celery==5.0.5
+lxml==4.6.3
+marshmallow==3.11.1
+pymongo==3.11.3
+redis==3.5.3
+requests==2.25.1
+simhash==2.0.0

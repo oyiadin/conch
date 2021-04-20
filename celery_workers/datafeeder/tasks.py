@@ -8,14 +8,14 @@ import urllib.parse
 from os import PathLike
 from typing import Optional, Tuple, Dict, Literal
 
-from conch.conch_streamin import *
-from conch.conch_streamin.utils import *
+from celery_workers.datafeeder import *
+from celery_workers.datafeeder.utils import *
 
 
 def download_dblp_dtd(url: str = None) -> str:
     if url is None:
         url = conf['dblp']['dtd_url']
-    fd, path = tempfile.mkstemp("streamin.dtd", "conch")
+    fd, path = tempfile.mkstemp("datafeeder.dtd", "celery_workers")
     os.close(fd)
     to_path = download(url, path)
     logger.info("Downloaded dblp.dtd from %s to %s", url, to_path)
@@ -25,14 +25,14 @@ def download_dblp_dtd(url: str = None) -> str:
 def download_dblp_xml_gz(url: str = None) -> str:
     if url is None:
         url = conf['dblp']['xml_gz_url']
-    fd, path = tempfile.mkstemp("streamin.xml.gz", "conch")
+    fd, path = tempfile.mkstemp("datafeeder.xml.gz", "celery_workers")
     os.close(fd)
     to_path = download(url, path)
     logger.info("Downloaded dblp.xml.gz from %s to %s", url, to_path)
     return to_path
 
 
-@app.task(name="streamin.fetch_dblp")
+@app.task(name="datafeeder.fetch_dblp")
 def fetch_dblp(then_analyze: bool = False) -> Optional[Tuple[str, str]]:
     last_etag = r.get('dblp_last_xml_gz_etag')
     if last_etag is not None:
@@ -56,7 +56,7 @@ def fetch_dblp(then_analyze: bool = False) -> Optional[Tuple[str, str]]:
 
 def decompress_xml_gz(xml_gz_path: PathLike, to_path: PathLike = None) -> str:
     if to_path is None:
-        fd, to_path = tempfile.mkstemp("dblp.xml", "conch")
+        fd, to_path = tempfile.mkstemp("dblp.xml", "celery_workers")
         os.close(fd)
     with gzip.open(xml_gz_path, 'rb') as fr:
         with open(to_path, 'wb') as fw:
@@ -202,7 +202,7 @@ def is_valuable(e: ET._Element, info: Dict) -> bool:
     return True
 
 
-@app.task(name="streamin.analyze_dblp")
+@app.task(name="datafeeder.analyze_dblp")
 def analyze_dblp(dtd_path: PathLike, xml_gz_path: PathLike):
     last_started = r.get('dblp_last_analyze_started')
     if last_started:
@@ -296,10 +296,10 @@ def translate_record(info: Dict) -> Dict:
                                               doc['url']))
     del doc['url']
 
-    # 1. rename author.key to author.streamin_key
+    # 1. rename author.key to author.datafeeder_key
     # 2. add a field 'name' for number-suffix-stripped name
     for author in doc['authors']:
-        author['streamin_key'] = author['key']
+        author['datafeeder_key'] = author['key']
         purified_name = ' '.join(filter(lambda x: not x.isdigit(),
                                         author['key'].split(' ')))
         author['name'] = purified_name
@@ -315,7 +315,7 @@ def translate_record(info: Dict) -> Dict:
     return doc
 
 
-@app.task(name="streamin.process_record")
+@app.task(name="datafeeder.process_record")
 def process_record(info: Dict):
     assert info['type'] in ['article', 'inproceedings']
 
@@ -372,7 +372,7 @@ def translate_homepage(info: Dict) -> Dict:
     del doc['type']
     del doc['mdate']
 
-    doc['streamin_keys'] = doc['names']
+    doc['datafeeder_keys'] = doc['names']
 
     purified_names = [' '.join(
         filter(lambda x: not x.isdigit(), name.split(' ')))
@@ -393,7 +393,7 @@ def translate_homepage(info: Dict) -> Dict:
     return doc
 
 
-@app.task(name="streamin.process_homepage")
+@app.task(name="datafeeder.process_homepage")
 def process_homepage(info: Dict):
     assert info['type'] == 'homepage'
 

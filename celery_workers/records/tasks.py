@@ -5,9 +5,9 @@ from typing import Dict, Literal, Optional
 from bson import ObjectId
 from marshmallow import EXCLUDE
 
-from conch.conch_records import *
-from conch.conch_records.schemas import *
-from conch.conch_records.stringsimhash import StringSimhash
+from celery_workers.records import *
+from celery_workers.records.schemas import *
+from celery_workers.records.stringsimhash import StringSimhash
 
 
 @app.task(name='records.insert')
@@ -47,7 +47,7 @@ def translate_to_db_operations(document: Dict, updates: Dict) -> Dict:
                 sets['title'] = v.to_dict()
         elif k in ['authors', 'ees', 'notes']:  # List
             if k == 'authors' or k == 'notes':  # Dict nested
-                key_inside = {'authors': 'streamin_key',
+                key_inside = {'authors': 'datafeeder_key',
                               'notes': 'text'}[k]
                 pushes[k] = []
                 for new_item in v:

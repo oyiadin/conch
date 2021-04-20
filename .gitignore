@@ -4,6 +4,7 @@
 __pychache__
 .idea/
 venv/
+*.log
 
 dblp*.dtd
 dblp*.xml

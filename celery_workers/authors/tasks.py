@@ -5,13 +5,13 @@ import urllib.parse
 import requests
 from marshmallow import EXCLUDE
 
-from conch.conch_authors import *
-from conch.conch_authors.schemas import AuthorSchema
+from celery_workers.authors import *
+from celery_workers.authors.schemas import AuthorSchema
 
 
-def find_author(streamin_keys: List[str]) -> Optional[Dict]:
-    assert len(streamin_keys), "Empty streamin_keys is not allowed"
-    query = {'$or': [{'streamin_keys': key} for key in streamin_keys]}
+def find_author(datafeeder_keys: List[str]) -> Optional[Dict]:
+    assert len(datafeeder_keys), "Empty datafeeder_keys is not allowed"
+    query = {'$or': [{'datafeeder_keys': key} for key in datafeeder_keys]}
     return t_authors.find_one(query)
 
 
@@ -21,24 +21,23 @@ def insert(doc: Dict):
     loaded = schema.load(doc)
     dumped = schema.dump(loaded)
 
-    assert 'streamin_keys' in loaded, f"streamin_keys is required when " \
-                                      f"inserting author: {dumped}"
-    streamin_keys = loaded['streamin_keys']
-    if find_author(streamin_keys):
-        raise FileExistsError(
-            "An author with a same streamin_key within %s is found in database",
-            streamin_keys)
+    assert 'datafeeder_keys' in loaded, f"datafeeder_keys is required when " \
+                                        f"inserting author: {dumped}"
+    datafeeder_keys = loaded['datafeeder_keys']
+    if find_author(datafeeder_keys):
+        raise FileExistsError("An author with a same datafeeder_key within %s "
+                              "is found in database", datafeeder_keys)
 
     logger.debug("Inserting a new author into database: %s", str(dumped))
     t_authors.insert_one(dumped)
 
 
 @app.task(name="authors.append_orcid")
-def append_orcid(streamin_keys: List[str], orcid: str):
-    author_in_db = find_author(streamin_keys)
+def append_orcid(datafeeder_keys: List[str], orcid: str):
+    author_in_db = find_author(datafeeder_keys)
     if author_in_db is None:
         raise FileNotFoundError(
-            f"No such author with streamin_keys: {streamin_keys}")
+            f"No such author with datafeeder_keys: {datafeeder_keys}")
 
     orcids_in_db = author_in_db.get('orcids', [])
     for orcid_in_db in orcids_in_db:
@@ -51,7 +50,7 @@ def append_orcid(streamin_keys: List[str], orcid: str):
     orcid_data = response.json()
     if orcid_data.get('response-code', None) == 404:
         logger.error('Error occurred when running append_orcid(%s, %s): %s',
-                     streamin_keys, orcid, orcid_data['developer-message'])
+                     datafeeder_keys, orcid, orcid_data['developer-message'])
         return
 
     push_data = {'value': orcid}
@@ -70,7 +69,8 @@ def append_orcid(streamin_keys: List[str], orcid: str):
 
 def translate_to_db_operations(document: Dict, updates: Dict) -> Dict:
     schema = AuthorSchema(only=['names', 'uname', 'affiliations', 'urls',
-                                'awards', 'is_disambiguation', 'streamin_keys'],
+                                'awards', 'is_disambiguation',
+                                'datafeeder_keys'],
                           exclude=['_id', 'dblp_homepage', 'orcids'],
                           unknown=EXCLUDE)
     loaded_document = schema.load(document)
@@ -79,7 +79,7 @@ def translate_to_db_operations(document: Dict, updates: Dict) -> Dict:
     sets, pushes = {}, {}
 
     for k, v in loaded_updates.items():
-        if k in ['names', 'streamin_keys']:  # List[String]
+        if k in ['names', 'datafeeder_keys']:  # List[String]
             items = list(filter(
                 lambda x: x not in loaded_document.get(k, []), v))
             if items:
@@ -121,12 +121,14 @@ def update(doc: Dict):
     schema = AuthorSchema(partial=True)
     loaded = schema.load(doc)
 
-    assert 'streamin_keys' in loaded, f"streamin_keys is required when " \
-                                      f"updating author: {loaded}"
-    assert len(loaded['streamin_keys']), f"streamin_keys must not be empty " \
-                                         f"when updating author: {loaded}"
+    assert 'datafeeder_keys' in loaded, f"datafeeder_keys is required when " \
+                                        f"updating author: {loaded}"
+    assert len(loaded['datafeeder_keys']), f"datafeeder_keys must not be " \
+                                           f"empty when updating author: " \
+                                           f"{loaded}"
 
-    query = {'$or': [{'streamin_keys': key} for key in loaded['streamin_keys']]}
+    query = {'$or': [{'datafeeder_keys': key}
+                     for key in loaded['datafeeder_keys']]}
     author_in_db = t_authors.find_one(query)
     db_operations = translate_to_db_operations(author_in_db, loaded)
     t_authors.update_one(query, db_operations)
