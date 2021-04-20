@@ -1,8 +1,5 @@
 # coding=utf-8
 
-from celery.schedules import crontab
-
-
 time_zone = 'UTC'
 
 task_annotations = {
