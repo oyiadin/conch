@@ -1,26 +1,37 @@
 version: "3.8"
 
 services:
+  reverse-proxy:
+    image: traefik
+    command: --api.insecure=true --providers.docker
+    ports:
+      - 80:80
+      - 8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - mongo-express
   mq:
     image: rabbitmq:management
     ports:
       - 15672:15672
       - 5672:5672
     networks:
-      - celery_workers_net
+      - default
   redis:
     image: redis
     ports:
       - 6379:6379
     networks:
-      - celery_workers_net
+      - default
   mongo:
     image: mongo
     ports:
       - 27017:27017
     networks:
       - mongo-express
-      - celery_workers_net
+      - default
   mongo-express:
     image: mongo-express
     ports:
@@ -31,7 +42,7 @@ services:
       - mongo
 
 networks:
+  default:
+    driver: bridge
   mongo-express:
     driver: bridge
-  celery_workers_net:
-    external: true

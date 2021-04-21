@@ -16,7 +16,7 @@ def find_author(datafeeder_keys: List[str]) -> Optional[Dict]:
 
 
 @app.task(name="authors.insert")
-def insert(doc: Dict):
+def task_insert(doc: Dict):
     schema = AuthorSchema()
     loaded = schema.load(doc)
     dumped = schema.dump(loaded)
@@ -112,8 +112,8 @@ def translate_to_db_operations(document: Dict, updates: Dict) -> Dict:
 
 
 @app.task(name="authors.update")
-def update(doc: Dict):
-    if 'orcids' in doc:
+def task_update(doc: Dict):
+    if 'orcids' in doc and doc['orcid']:
         logger.error("It's not allowed to update orcids with authors.update, "
                      "call authors.append_orcid instead.")
         return

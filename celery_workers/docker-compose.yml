@@ -6,26 +6,26 @@ services:
       context: .
       dockerfile: task-beater.dockerfile
     networks:
-      - net
+      - conch_default
   datafeeder:
     build:
       context: .
       dockerfile: datafeeder.dockerfile
     networks:
-      - net
+      - conch_default
   conch_records:
     build:
       context: .
       dockerfile: records.dockerfile
     networks:
-      - net
+      - conch_default
   conch_authors:
     build:
       context: .
       dockerfile: authors.dockerfile
     networks:
-      - net
+      - conch_default
 
 networks:
-  net:
-    driver: bridge
+  conch_default:
+    external: true

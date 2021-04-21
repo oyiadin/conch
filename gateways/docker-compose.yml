@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  authors:
+    build:
+      context: authors
+    networks:
+      - conch_default
+    labels:
+      - traefik.http.routers.authors.rule=Host("conch.localhost") && PathPrefix(`/api/authors/`)
+      - traefik.http.middlewares.authors-no-prefix-mw.stripprefix.prefixes=/api/authors
+      - traefik.http.routers.authors.middlewares=authors-no-prefix-mw@docker
+  records:
+    build:
+      context: records
+    networks:
+      - conch_default
+    labels:
+      - traefik.http.routers.records.rule=Host("conch.localhost") && PathPrefix(`/api/records/`)
+      - traefik.http.middlewares.records-no-prefix-mw.stripprefix.prefixes=/api/records
+      - traefik.http.routers.records.middlewares=records-no-prefix-mw@docker
+
+networks:
+  conch_default:
+    external: true
