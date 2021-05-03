@@ -38,6 +38,8 @@ services:
       - 8081:8081
     networks:
       - mongo-express
+    labels:
+      - traefik.http.routers.mongo-express.rule=Host(`manage.conch.localhost`)
     depends_on:
       - mongo
 

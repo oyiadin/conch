@@ -3,6 +3,7 @@ import copy
 import gzip
 import json
 import os
+import shutil
 import tempfile
 import urllib.parse
 from os import PathLike
@@ -33,7 +34,7 @@ def download_dblp_xml_gz(url: str = None) -> str:
 
 
 @app.task(name="datafeeder.fetch_dblp")
-def fetch_dblp(then_analyze: bool = False) -> Optional[Tuple[str, str]]:
+def task_fetch_dblp(then_analyze: bool = False) -> Optional[Tuple[str, str]]:
     last_etag = r.get('dblp_last_xml_gz_etag')
     if last_etag is not None:
         last_etag = last_etag.decode()
@@ -50,7 +51,7 @@ def fetch_dblp(then_analyze: bool = False) -> Optional[Tuple[str, str]]:
             xml_gz_path = download_dblp_xml_gz()
 
             if then_analyze:
-                analyze_dblp.delay(dtd_path, xml_gz_path)
+                task_analyze_dblp.delay(dtd_path, xml_gz_path)
             return dtd_path, xml_gz_path
 
 
@@ -203,7 +204,7 @@ def is_valuable(e: ET._Element, info: Dict) -> bool:
 
 
 @app.task(name="datafeeder.analyze_dblp")
-def analyze_dblp(dtd_path: PathLike, xml_gz_path: PathLike):
+def task_analyze_dblp(dtd_path: PathLike, xml_gz_path: PathLike):
     last_started = r.get('dblp_last_analyze_started')
     if last_started:
         logger.error("The last analyze_dblp task has not finished yet")
@@ -235,9 +236,9 @@ def analyze_dblp(dtd_path: PathLike, xml_gz_path: PathLike):
                 info = extract_info(elem)
                 if is_valuable(elem, info):
                     if info['type'] in ['article', 'inproceedings']:
-                        process_record.delay(info)
+                        task_process_record.delay(info)
                     else:  # homepage
-                        process_homepage.delay(info)
+                        task_process_homepage.delay(info)
                 else:
                     logger.debug("One element was ignored with key=%s",
                                  info['key'])
@@ -316,7 +317,7 @@ def translate_record(info: Dict) -> Dict:
 
 
 @app.task(name="datafeeder.process_record")
-def process_record(info: Dict):
+def task_process_record(info: Dict):
     assert info['type'] in ['article', 'inproceedings']
 
     type, key, mdate = info['type'], info['key'], info['mdate']
@@ -394,7 +395,7 @@ def translate_homepage(info: Dict) -> Dict:
 
 
 @app.task(name="datafeeder.process_homepage")
-def process_homepage(info: Dict):
+def task_process_homepage(info: Dict):
     assert info['type'] == 'homepage'
 
     type, key, mdate = info['type'], info['key'], info['mdate']
@@ -418,3 +419,47 @@ def process_homepage(info: Dict):
 
     else:
         logger.debug("No need to process the homepage %s", logged_key)
+
+
+@app.task(name="datafeeder.analyze_arxiv")
+def task_analyze_arxiv(url: str = None, filepath: PathLike = None):
+    if url is not None:
+        postfix = 'zip' if 'zip' in url.lower() else 'json'
+        fd, path = tempfile.mkstemp(f"arxiv.archive.{postfix}",
+                                    "celery_workers")
+        os.close(fd)
+        filepath = download(url, path)
+
+    assert filepath is not None
+    assert os.path.exists(filepath)
+
+    out_path = None
+    if filepath.lower().endswith('.zip'):
+        out_path = tempfile.mkdtemp("arxiv_archive_zip", "celery_workers")
+        shutil.unpack_archive(filepath, out_path)
+        names = os.listdir(out_path)
+        for name in names:
+            if name.lower().endswith('.json'):
+                filepath = os.path.join(out_path, name)
+                break
+        else:
+            if out_path is not None:
+                shutil.rmtree(out_path)
+            raise FileNotFoundError("No any json file lies in the zip file!")
+
+    with open(filepath, "r") as f:
+        for line in f:
+            data = json.loads(line)
+            task_process_arxiv_record.delay(data)
+
+
+
+    if out_path is not None:
+        shutil.rmtree(out_path)
+
+
+
+
+@app.task(name="datafeeder.process_arxiv_record")
+def task_process_arxiv_record(data: Dict):
+    pass
