@@ -1,5 +1,0 @@
-fastapi==0.63.0
-uvicorn==0.13.4
-celery==5.0.5
-pymongo==3.11.3
-marshmallow==3.11.1

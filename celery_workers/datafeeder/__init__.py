@@ -20,7 +20,10 @@ dbclient = pymongo.MongoClient(conf['db']['url'])
 db = dbclient[conf['db']['db_name']]  # type: pymongo.database.Database
 t_dblp = db['dblp']  # type: pymongo.database.Collection
 t_arxiv = db['arxiv']  # type: pymongo.database.Collection
+t_records = db['records']  # type: pymongo.database.Collection
+t_authors = db['authors']  # type: pymongo.database.Collection
 
+t_records.create_index([("title", pymongo.TEXT)], name="text-search-title")
 
 r = redis.Redis(host=conf['redis']['host'],
                 port=conf['redis']['port'],

@@ -13,16 +13,10 @@ services:
       dockerfile: datafeeder.dockerfile
     networks:
       - conch_default
-  conch_records:
+  recommender:
     build:
       context: .
-      dockerfile: records.dockerfile
-    networks:
-      - conch_default
-  conch_authors:
-    build:
-      context: .
-      dockerfile: authors.dockerfile
+      dockerfile: recommender.dockerfile
     networks:
       - conch_default
 

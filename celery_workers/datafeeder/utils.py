@@ -1,5 +1,4 @@
 # coding=utf-8
-import lxml.etree as ET
 import requests
 
 from celery_workers.datafeeder import conf
@@ -16,20 +15,16 @@ def download(url: str, path: str) -> str:
     return path
 
 
-def get_inside_html(root: ET._Element) -> str:
-    html = ''
-    for event, elem in ET.iterwalk(root, ['start', 'end']):
-        if event == 'start':
-            if elem is not root and not isinstance(elem, ET._Entity):
-                    html += f'<{elem.tag}>{elem.text}'
-            else:
-                html += elem.text
-        else:
-            if elem is not root:
-                if not isinstance(elem, ET._Entity):
-                    html += f'</{elem.tag}>{elem.tail}'
-                else:
-                    html += elem.tail
-            else: pass  # omit the tail of <root>
-
-    return html
+def explain_second(secs: float, format: str = "%.2f"):
+    value = secs * 1000
+    for unit_name, unit_scale in [
+        ("ms", 1000),
+        ("s", 60),
+        ("min", 60),
+        ("h", 24),
+        ("d", 1000000000),
+    ]:
+        if 1 <= value < unit_scale:
+            break
+        value /= unit_scale
+    return (format % value) + unit_name

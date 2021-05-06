@@ -9,6 +9,5 @@ task_annotations = {
 task_default_queue = 'celery_workers'
 task_routes = {
     'datafeeder.*': {'queue': 'conch_datafeeder'},
-    'records.*': {'queue': 'conch_records'},
-    'authors.*': {'queue': 'conch_authors'},
+    'recommender.*': {'queue': 'conch_recommender'},
 }

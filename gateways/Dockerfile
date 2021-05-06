@@ -7,8 +7,8 @@ RUN pip install -r requirements.txt
 
 EXPOSE 8080
 
-COPY *.py ./app/
+COPY *.py ./gateways/
 COPY config.ini ./
 
-ENTRYPOINT [ "uvicorn", "app.main:app" ]
+ENTRYPOINT [ "uvicorn", "gateways.main:app" ]
 CMD [ "--host", "0.0.0.0", "--port", "8080" ]
