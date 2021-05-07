@@ -53,6 +53,7 @@ def task_process_s2_urls(urls: List[str]):
                 del record['s2PdfUrl']
                 del record['doiUrl']
                 del record['sources']
+                record['journalPages'] = record['journalPages'].strip()
                 record['_id'] = paper_id = record.pop('id')
                 study_fields.update(record['fieldsOfStudy'])
                 for author in record['authors']:

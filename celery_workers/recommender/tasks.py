@@ -9,6 +9,7 @@ import faiss
 from typing import List, Tuple, Optional
 
 import gensim.models.doc2vec
+from celery.result import AsyncResult
 from sklearn.cluster import DBSCAN
 from sklearn.metrics.pairwise import cosine_distances
 
@@ -20,7 +21,7 @@ model: Optional[gensim.models.doc2vec.Doc2Vec] = None
 
 
 @app.task(name="recommender.create_index")
-def create_index(filename: str = None):
+def task_create_index(filename: str = None):
     global index
     if filename is None:
         filename = conf['faiss']['path']
@@ -132,7 +133,7 @@ def task_process_database():
 
 
 @app.task(name="recommender.recommend")
-def task_recommend(user_id: int, from_paper_id: str):
+def task_recommend(user_id: str, from_paper_id: str):
     author = t_authors.find_one({'_id': user_id})
     paper_ids = author['papers']
 
@@ -204,6 +205,12 @@ def task_load_from_disk():
         open(conf['recommender']['index_mappings_path'], 'rb'))
     model = gensim.models.doc2vec.Doc2Vec.load(
         conf['recommender']['doc2vec_path'])
+
+
+@app.task(name="recommender.clear_async_result")
+def task_clear_async_result(id):
+    async_result = AsyncResult(id=id, app=app)
+    async_result.forget()
 
 
 if __name__ == '__main__':

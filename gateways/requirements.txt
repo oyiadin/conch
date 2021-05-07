@@ -3,3 +3,4 @@ uvicorn==0.13.4
 celery==5.0.5
 pymongo==3.11.3
 marshmallow==3.11.1
+redis==3.5.3
