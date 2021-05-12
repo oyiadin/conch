@@ -50,10 +50,21 @@ def build_corpus() -> List[Tuple[str, List[str]]]:
     return corpus
 
 
-def yield_tagged_document(corpus: List[Tuple[str, List[str]]]):
-    for n, doc_id_and_doc in enumerate(corpus):
+class yield_tagged_document:
+    def __init__(self, corpus: List[Tuple[str, List[str]]]):
+        self.corpus = corpus
+
+    def __iter__(self):
+        self.n = 0
+        return self
+
+    def __next__(self):
+        if self.n >= len(self.corpus):
+            raise StopIteration
+        self.n += 1
+        doc_id_and_doc = self.corpus[self.n - 1]
         _, doc = doc_id_and_doc
-        yield gensim.models.doc2vec.TaggedDocument(doc, [n])
+        return gensim.models.doc2vec.TaggedDocument(doc, [self.n - 1])
 
 
 def yield_pop_corpus(corpus: List[Tuple[str, List[str]]]):
@@ -133,8 +144,8 @@ def task_process_database():
 
 
 @app.task(name="recommender.recommend")
-def task_recommend(user_id: str, from_paper_id: str):
-    author = t_authors.find_one({'_id': user_id})
+def task_recommend(author_id: str, from_paper_id: str):
+    author = t_authors.find_one({'_id': author_id})
     paper_ids = author['papers']
 
     interest_papers_vectors = []
@@ -214,6 +225,6 @@ def task_clear_async_result(id):
 
 
 if __name__ == '__main__':
-    task_load_from_disk()
-    task_recommend(46641658, '237e5a3778ccff06cd2d3e2d3f76eddf82913a7b')
-    # task_process_database()
+    # task_load_from_disk()
+    # task_recommend(46641658, '237e5a3778ccff06cd2d3e2d3f76eddf82913a7b')
+    task_process_database()

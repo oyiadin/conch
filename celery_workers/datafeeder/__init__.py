@@ -29,5 +29,9 @@ r = redis.Redis(host=conf['redis']['host'],
                 port=conf['redis']['port'],
                 db=conf['redis']['db'])
 
-app = celery.Celery("datafeeder", broker=conf['mq']['url'])
+app = celery.Celery("datafeeder",
+                    backend=f"redis://{conf['redis']['host']}"
+                            f":{conf['redis']['port']}"
+                            f"/{conf['redis']['db']}",
+                    broker=conf['mq']['url'])
 app.config_from_object('celery_workers.celeryconfig')

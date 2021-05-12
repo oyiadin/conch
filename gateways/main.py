@@ -5,7 +5,7 @@ from bson import ObjectId
 from celery.result import AsyncResult
 from fastapi import FastAPI, HTTPException, Cookie, Request
 from marshmallow import EXCLUDE
-from typing import List, Optional, Dict
+from typing import Optional
 
 from fastapi import Response
 from fastapi.responses import RedirectResponse
@@ -32,10 +32,11 @@ def _query_record(key):
 
 
 @app.get("/record/{key:path}")
-async def query_record(key: str, session: Optional[str] = Cookie(None)):
+async def query_record(key: str, no_record_history: bool = False,
+                       session: Optional[str] = Cookie(None)):
     record = _query_record(key)
 
-    if session is not None:
+    if session is not None and not no_record_history:
         user = get_user(session)
         record_id = str(record['_id'])
         if record_id not in user['visited']:
@@ -60,10 +61,16 @@ async def search_record(query_str: str):
     }
 
 
+@app.get('/author/{author_id}')
+async def query_author(author_id: int):
+    results = t_authors.find_one({'_id': author_id})
+    return results
+
+
 class UserRegistrationModel(BaseModel):
     hashed_password: str
     email: str
-    author_id: str
+    author_id: int
 
 
 @app.put("/user/homepage")
@@ -141,22 +148,23 @@ def get_user_id(sess_key, *args, **kwargs):
 
 @app.put("/recommend/record/{key:path}")
 async def request_recommend_records(key: str, session: Optional[str] = Cookie(None)):
-    user_id = str(get_user_id(session))
+    user = get_user(session)
+    author_id = user['author_id']
     record = _query_record(key)
     record_id = str(record['_id'])
     async_result = celery_app.send_task("recommender.recommend",
-                                        args=(user_id, record_id))
+                                        args=(author_id, record_id))
 
     celery_app.send_task("recommender.clear_async_result",
                          args=(async_result.id,),
                          countdown=60).forget()
-    return async_result.id
+    return {'result_id': async_result.id}
 
 
 @app.get("/recommend/result/{id}")
 async def get_recommend_results(id: str):
     async_result = AsyncResult(id=id, app=celery_app)
-    if async_result.state == 'SUCCESSFUL':
+    if async_result.state == 'SUCCESS':
         return {'status': 'ok', 'paper_ids': async_result.get()}
     return {'status': 'pending'}
 

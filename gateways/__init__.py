@@ -21,8 +21,12 @@ logger = logging.getLogger(__name__)
 logger.setLevel(conf['log']['level'])
 logger.addHandler(logging.StreamHandler())
 
-celery_app = celery.Celery("gateways", broker=conf['mq']['url'])
-celery_app.config_from_object('celeryconfig')
+celery_app = celery.Celery("gateways",
+                           backend=f"redis://{conf['redis']['host']}"
+                                   f":{conf['redis']['port']}"
+                                   f"/{conf['redis']['db']}",
+                           broker=conf['mq']['url'])
+celery_app.config_from_object('gateways.celeryconfig')
 
 dbclient = pymongo.MongoClient(conf['db']['url'])
 db = dbclient[conf['db']['db_name']]  # type: pymongo.database.Database
