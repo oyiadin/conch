@@ -6,7 +6,7 @@ import pickle
 import time
 
 import faiss
-from typing import List, Tuple, Optional, Iterator
+from typing import List, Tuple, Optional, Iterator, Dict
 
 import gensim.models.doc2vec
 from celery.result import AsyncResult
@@ -20,6 +20,12 @@ index2doc_id = None
 model: Optional[gensim.models.doc2vec.Doc2Vec] = None
 
 
+def get_tokens(record: Dict) -> List[str]:
+    text = record['title'] + ' ' + record['paperAbstract']
+    tokens = gensim.utils.simple_preprocess(text)
+    return tokens
+
+
 class yield_corpus:
     def __iter__(self):
         self.cursor = t_records.find()
@@ -29,10 +35,9 @@ class yield_corpus:
 
     def __next__(self):
         record = next(self.cursor)
-        text = record['title'] + ' ' + record['paperAbstract']
-        tokens = gensim.utils.simple_preprocess(text)
+        tokens = get_tokens(record)
         if self.n % 10000 == 0:
-            logger.debug("[build corpus] Processed 10000 records within %.2f s",
+            logger.debug("[iter corpus] Processed 10000 records within %.2f s",
                          time.time() - self.last_time)
             self.last_time = time.time()
         self.n += 1
@@ -88,10 +93,8 @@ def task_process_database():
         vec = model.infer_vector(doc)
         vectors.append(vec)
         index2doc_id.append(doc_id)
-        t_records.update_one({'_id': doc_id},
-                             {'$set': {'doc2vec': vec.tolist()}})
         if n % 10000 == 0:
-            logger.debug("[save doc2vec vectors to database] Processed 10000 "
+            logger.debug("[collecting vectors for faiss] Processed 10000 "
                          "records within %.2f s", time.time() - last_time)
             last_time = time.time()
 
@@ -136,7 +139,8 @@ def task_recommend(author_id: Optional[str], from_paper_id: str):
             if record is None:
                 logger.error("Unable to find paper with _id=%s", paper_id)
                 continue
-            interest_papers_vectors.append(record['doc2vec'])
+            vec = model.infer_vector(get_tokens(record))
+            interest_papers_vectors.append(vec)
             citation_paper_ids = record['outCitations']
             for citation_paper_id in citation_paper_ids:
                 cited_paper = t_records.find_one({'_id': citation_paper_id})
@@ -144,7 +148,8 @@ def task_recommend(author_id: Optional[str], from_paper_id: str):
                     logger.warning("While finding cited papers, no such paper with "
                                    "id %s", citation_paper_id)
                     continue
-                interest_papers_vectors.append(cited_paper['doc2vec'])
+                vec = model.infer_vector(get_tokens(cited_paper))
+                interest_papers_vectors.append(vec)
 
         interest_papers_centers = []
         interest_papers_vectors = np.array(interest_papers_vectors)
@@ -165,7 +170,8 @@ def task_recommend(author_id: Optional[str], from_paper_id: str):
         else:
             interest_papers_centers = np.array(interest_papers_centers)
 
-    from_paper_vector = t_records.find_one({'_id': from_paper_id})['doc2vec']
+    from_paper_vector = model.infer_vector(get_tokens(
+        t_records.find_one({'_id': from_paper_id})))
     faiss_distances, faiss_indexes = index.search(
         np.array([from_paper_vector]).astype('float32'),
         int(conf['faiss']['search_top_k']))
@@ -177,8 +183,8 @@ def task_recommend(author_id: Optional[str], from_paper_id: str):
         faiss_paper_id = index2doc_id[faiss_index]
         if faiss_paper_id == from_paper_id:
             continue
-        similar_paper_vectors.append(
-            t_records.find_one({'_id': faiss_paper_id})['doc2vec'])
+        similar_paper_vectors.append(model.infer_vector(get_tokens(
+            t_records.find_one({'_id': faiss_paper_id}))))
         similar_paper_ids.append(faiss_paper_id)
     similar_paper_vectors = np.array(similar_paper_vectors)
 
