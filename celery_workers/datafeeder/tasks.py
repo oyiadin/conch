@@ -30,20 +30,16 @@ banned_fields = [
 
 
 @app.task(name="datafeeder.process_s2")
-def task_process_s2_urls(urls: List[str]):
-    for i, url in enumerate(urls):
-        fd, filepath = tempfile.mkstemp("s2.gz", "celery_workers")
-        os.close(fd)
-        filepath = download(url, filepath)
-        logger.debug("[%d / %d] Url %s downloaded to %s",
-                     i, len(urls), url, filepath)
-
+def task_process_s2_urls(paths: List[os.PathLike]):
+    for i, filepath in enumerate(paths):
         study_fields = set()
         with gzip.open(filepath, "rb") as f:
             buffered_records = []
             last_time = time.time()
             for j, line in enumerate(f, start=1):
                 record = json.loads(line)
+                if not len(record['fieldsOfStudy']):
+                    continue
                 if len(record['fieldsOfStudy']) and \
                         all(map(lambda x: x in banned_fields,
                                 record['fieldsOfStudy'])):
@@ -79,5 +75,3 @@ def task_process_s2_urls(urls: List[str]):
             if buffered_records:
                 perform_insert_many_records(buffered_records)
                 buffered_records.clear()
-
-        os.remove(filepath)

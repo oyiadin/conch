@@ -3,7 +3,8 @@ FROM python:3.9
 ENV PYTHONPATH=/conch
 WORKDIR /conch
 
-RUN pip install celery
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
 COPY __init__.py celeryconfig.py periodic_tasks.py global-config.ini \
     ./celery_workers/

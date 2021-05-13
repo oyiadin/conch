@@ -128,12 +128,15 @@ async def logout_user():
 
 
 def get_user(sess_key, raise_exc: bool = True):
-    user_id = ObjectId(session_manager[sess_key]['user_id'])
-    user = t_users.find_one({'_id': user_id})
+    if sess_key:
+        user_id = ObjectId(session_manager[sess_key]['user_id'])
+        user = t_users.find_one({'_id': user_id})
+    else:
+        user = None
     if user is None:
         if raise_exc:
             raise HTTPException(status_code=404,
-                                detail='Invalid session: no such user')
+                                detail='Invalid session')
         else:
             return None
     return user
@@ -148,8 +151,8 @@ def get_user_id(sess_key, *args, **kwargs):
 
 @app.put("/recommend/record/{key:path}")
 async def request_recommend_records(key: str, session: Optional[str] = Cookie(None)):
-    user = get_user(session)
-    author_id = user['author_id']
+    user = get_user(session, raise_exc=False)
+    author_id = user['author_id'] if user else None
     record = _query_record(key)
     record_id = str(record['_id'])
     async_result = celery_app.send_task("recommender.recommend",
