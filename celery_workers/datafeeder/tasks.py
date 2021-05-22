@@ -2,7 +2,6 @@
 import gzip
 import json
 import os
-import tempfile
 import time
 from typing import Dict, List
 
@@ -21,28 +20,15 @@ def perform_insert_many_records(records: List[Dict]):
     t_records.insert_many(records, ordered=False)
 
 
-
-banned_fields = [
-    'Biology', 'Political Science', 'Sociology', 'Business', 'Geography', 'Art',
-    'Psychology', 'Environmental Science', 'Philosophy', 'Materials Science',
-    'Geology', 'Economics', 'History', 'Chemistry', 'Medicine', 'Physics'
-]
-
-
 @app.task(name="datafeeder.process_s2")
 def task_process_s2_urls(paths: List[os.PathLike]):
     for i, filepath in enumerate(paths):
-        study_fields = set()
         with gzip.open(filepath, "rb") as f:
             buffered_records = []
             last_time = time.time()
             for j, line in enumerate(f, start=1):
                 record = json.loads(line)
-                if not len(record['fieldsOfStudy']):
-                    continue
-                if len(record['fieldsOfStudy']) and \
-                        all(map(lambda x: x in banned_fields,
-                                record['fieldsOfStudy'])):
+                if 'Computer Science' not in record['fieldsOfStudy']:
                     continue
                 del record['entities']
                 del record['s2Url']
@@ -51,7 +37,6 @@ def task_process_s2_urls(paths: List[os.PathLike]):
                 del record['sources']
                 record['journalPages'] = record['journalPages'].strip()
                 record['_id'] = paper_id = record.pop('id')
-                study_fields.update(record['fieldsOfStudy'])
                 for author in record['authors']:
                     author_name = author['name']
                     for a_id in author['ids']:
@@ -69,8 +54,6 @@ def task_process_s2_urls(paths: List[os.PathLike]):
                         j,
                         explain_second(time_diff),
                         explain_second(time_diff * 10000 / j))
-                    logger.debug("Collected study fields: %s",
-                                 ', '.join(study_fields))
 
             if buffered_records:
                 perform_insert_many_records(buffered_records)
