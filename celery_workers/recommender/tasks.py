@@ -1,4 +1,10 @@
 # coding=utf-8
+import glob
+import gzip
+import json
+import os
+import random
+
 import numpy as np
 import pickle
 import time
@@ -14,50 +20,63 @@ from sklearn.metrics.pairwise import cosine_distances
 from celery_workers.recommender import *
 
 index: Optional[faiss.IndexIVFFlat] = None
-index2word_id: Optional[List] = None
 wv: Optional[gensim.models.KeyedVectors] = None
 
 
 class yield_corpus:
-    def __init__(self, return_id: bool = False):
+    def __init__(self,
+                 return_id: bool = False,
+                 check_word_id: bool = True):
         self.return_id = return_id
+        self.check_word_id = check_word_id
+        self.cursor = None
+        self.first_run = True
 
     def __iter__(self):
         self.cursor = t_records.find()
-        self.n = 1
-        self.last_time = time.time()
-        return self
+        if self.first_run:
+            self.first_run = False
+        else:
+            self.check_word_id = False
+        return self.generator()
 
-    def __next__(self):
-        while True:
-            record = next(self.cursor)
-            words = record.get('outCitations')
-            if not words:
+    def generator(self):
+        n = 0
+        last_time = time.time()
+        for record in self.cursor:
+            n += 1
+            if n % 100000 == 0:
+                logger.debug("[iter corpus] Processed 100000 records within %.2f s",
+                             time.time() - last_time)
+                last_time = time.time()
+
+            if 'Computer Science' not in record['fieldsOfStudy']:
                 continue
-            if self.n % 10000 == 0:
-                logger.debug("[iter corpus] Processed 10000 records within %.2f s",
-                             time.time() - self.last_time)
-                self.last_time = time.time()
-            self.n += 1
+            raw_words = record.get('outCitations') or record.get('inCitations')
+            if not raw_words or len(raw_words) < 4:
+                continue
+            raw_words = random.sample(raw_words, k=4)
+            raw_words.append(record['_id'])
+            random.shuffle(raw_words)
+
             if self.return_id:
-                return record['_id'], words
-            return words
+                yield record['_id'], raw_words
+            yield raw_words
 
 
 @app.task(name="recommender.process_database")
 def task_process_database():
-    global index, index2word_id, wv
+    global index, wv
 
-    corpus = yield_corpus()
     model = gensim.models.word2vec.Word2Vec(
-        sentences=iter(corpus),
-        size=int(conf['recommender']['vector_size']),
+        sentences=yield_corpus(),
+        vector_size=int(conf['recommender']['vector_size']),
         workers=int(conf['recommender']['workers']),
-        min_count=int(conf['recommender']['min_count']))
-    model.train(iter(corpus),
-                total_examples=model.corpus_count,
-                epochs=int(conf['recommender']['epochs']))
-    del corpus
+        min_count=int(conf['recommender']['min_count']),
+        epochs=int(conf['recommender']['epochs']))
+    # model.train(iter(corpus),
+    #             total_examples=model.corpus_count,
+    #             epochs=int(conf['recommender']['epochs']))
     logger.debug("[word2vec] Model trained")
 
     wv = model.wv
@@ -70,7 +89,6 @@ def task_process_database():
     #     conf['recommender']['word2vec_wv_path'])
 
     wv.init_sims()
-    index2word_id = wv.index2word
 
     logger.debug("Building faiss index")
     quantizer = faiss.IndexFlatL2(int(conf['faiss']['dimension']))
@@ -78,7 +96,7 @@ def task_process_database():
                                int(conf['faiss']['dimension']),
                                int(conf['faiss']['nlist']),
                                faiss.METRIC_L2)
-    vectors = wv.vectors_norm
+    vectors = wv.get_normed_vectors()
     index.train(vectors)
     logger.debug("Faiss index trained")
     index.add(vectors)
@@ -87,14 +105,28 @@ def task_process_database():
     logger.debug("Faiss index saved to %s", conf['faiss']['path'])
 
 
+def normalize(arr: np.ndarray, inplace: bool = False):
+    norm = np.linalg.norm(arr)
+    if norm == 0:
+        return arr
+
+    if not inplace:
+        return arr / norm
+    else:
+        arr /= norm
+        return arr
+
+
 @app.task(name="recommender.recommend")
-def task_recommend(author_id: Optional[str], from_paper_id: str):
+def task_recommend(author_id: Optional[str],
+                   from_paper_id: str,
+                   visited_ids: List[str]):
     try:
-        from_paper_vector = wv.word_vec(from_paper_id, use_norm=True)
-    except KeyError:
+        from_paper_vector = wv.get_vector(from_paper_id, norm=True)
+    except:
         return None
 
-    user_profile_vector = None  # to make PyCharm happy
+    interest_papers_vectors = []  # to make PyCharm happy
     if author_id:
         author = t_authors.find_one({'_id': author_id})
         paper_ids = author['papers']
@@ -105,7 +137,7 @@ def task_recommend(author_id: Optional[str], from_paper_id: str):
                 logger.error("Unable to find paper with _id=%s", paper_id)
                 continue
             try:
-                vec = wv.word_vec(paper_id, use_norm=True)
+                vec = wv.get_vector(paper_id, norm=True)
                 interest_papers_vectors.append(vec)
             except KeyError:
                 continue
@@ -113,12 +145,21 @@ def task_recommend(author_id: Optional[str], from_paper_id: str):
             citation_paper_ids = record['outCitations']
             for citation_paper_id in citation_paper_ids:
                 try:
-                    vec = wv.word_vec(citation_paper_id, use_norm=True)
+                    vec = wv.get_vector(citation_paper_id, norm=True)
                     interest_papers_vectors.append(vec)
                 except KeyError:
                     continue
 
+    user_profile_vector = None  # to make PyCharm happy
+    if author_id or visited_ids:
         interest_papers_centers = []
+        if visited_ids:
+            for paper_id in visited_ids:
+                try:
+                    vec = wv.get_vector(paper_id, norm=True)
+                    interest_papers_vectors.append(vec)
+                except KeyError:
+                    continue
         interest_papers_vectors = np.array(interest_papers_vectors)
         clustering = DBSCAN(eps=float(conf['dbscan']['eps']),
                             min_samples=int(conf['dbscan']['min_samples'])
@@ -148,39 +189,47 @@ def task_recommend(author_id: Optional[str], from_paper_id: str):
     similar_paper_vectors = []
     similar_paper_ids = []
     for faiss_distance, faiss_index in zip(faiss_distances, faiss_indexes):
-        faiss_paper_id = index2word_id[faiss_index]
-        if faiss_paper_id == from_paper_id:
-            continue
-        vec = wv.word_vec(faiss_paper_id, use_norm=True)
+        faiss_paper_id = wv.index_to_key[faiss_index]
+        vec = wv.get_vector(faiss_paper_id, norm=True)
         similar_paper_vectors.append(vec)
         similar_paper_ids.append(faiss_paper_id)
     similar_paper_vectors = np.array(similar_paper_vectors)
 
-    if author_id:
-        # TODO: 优化排序
-        distances = cosine_distances(
-            similar_paper_vectors, user_profile_vector)
+    if author_id or visited_ids:
+        user_profile_distances = cosine_distances(
+            similar_paper_vectors, user_profile_vector)[..., 0]
         final_paper_ids = []
-        for sorted_index in distances[..., 0].argsort():
+        faiss_distance_weight = float(conf['recommender']['faiss_distance_weight'])
+        normalized_faiss_distances = normalize(faiss_distances)
+        user_profile_distance_weight = float(conf['recommender']['user_profile_distance_weight'])
+        normalized_user_profile_distances = normalize(user_profile_distances)
+        weighted_distances = \
+            faiss_distance_weight * normalized_faiss_distances \
+            + user_profile_distance_weight * normalized_user_profile_distances
+        for sorted_index in weighted_distances.argsort():
             final_paper_ids.append(similar_paper_ids[sorted_index])
     else:
         final_paper_ids = similar_paper_ids
+
+    from_paper_index = final_paper_ids.index(from_paper_id)
+    if from_paper_index != -1:
+        final_paper_ids.pop(from_paper_index)
 
     return final_paper_ids
 
 
 @app.task(name="recommender.load_from_disk")
 def task_load_from_disk():
-    global index, index2word_id, model
+    global index, wv
     index = faiss.read_index(conf['faiss']['path'])
+    # noinspection PyTypeChecker
     wv = gensim.models.KeyedVectors.load(
-        conf['recommender']['word2vec_wv_path'])
-    index2word_id = wv.index2word
+        conf['recommender']['word2vec_wv_path'])  # type: gensim.models.KeyedVectors
 
 
 @app.task(name="recommender.clear_async_result")
-def task_clear_async_result(id):
-    async_result = AsyncResult(id=id, app=app)
+def task_clear_async_result(task_id):
+    async_result = AsyncResult(id=task_id, app=app)
     async_result.forget()
 
 
