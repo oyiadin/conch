@@ -4,10 +4,10 @@ ENV PYTHONPATH=/conch
 WORKDIR /conch
 
 COPY requirements.txt ./celery_workers/
-RUN pip install -r ./celery_workers/requirements.txt
+RUN pip install --no-cache-dir -r ./celery_workers/requirements.txt
 
 COPY datafeeder/requirements.txt ./celery_workers/datafeeder/
-RUN pip install -r ./celery_workers/datafeeder/requirements.txt
+RUN pip install --no-cache-dir -r ./celery_workers/datafeeder/requirements.txt
 
 COPY *.py global-config.ini ./celery_workers/
 

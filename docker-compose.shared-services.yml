@@ -19,6 +19,8 @@ services:
       - 5672:5672
     networks:
       - default
+    volumes:
+        - /data/conch/mq:/var/lib/rabbitmq
   redis:
     image: redis
     ports:
@@ -32,6 +34,8 @@ services:
     networks:
       - mongo-express
       - default
+    volumes:
+        - /data/conch/mongo:/data/db
   mongo-express:
     image: mongo-express
     networks:

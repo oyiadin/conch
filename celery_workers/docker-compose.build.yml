@@ -2,20 +2,25 @@ version: "3.8"
 
 services:
   task-beater:
-    image: 192.168.1.103:5000/task-beater
+    build:
+      context: .
+      dockerfile: task-beater.dockerfile
     networks:
       - conch_default
   datafeeder:
-    image: 192.168.1.103:5000/datafeeder
+    build:
+      context: .
+      dockerfile: datafeeder.dockerfile
     networks:
       - conch_default
   recommender:
-    image: 192.168.1.103:5000/recommender
+    build:
+      context: .
+      dockerfile: recommender.dockerfile
     networks:
       - conch_default
     volumes:
       - recommender_pickles:/data/pickles
-      - /data16t/visitor17/s2:/data/s2
 
 networks:
   conch_default:

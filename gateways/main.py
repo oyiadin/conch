@@ -152,11 +152,12 @@ def get_user_id(sess_key, *args, **kwargs):
 @app.put("/recommend/record/{key:path}")
 async def request_recommend_records(key: str, session: Optional[str] = Cookie(None)):
     user = get_user(session, raise_exc=False)
+    visited_ids = user['visited'] if user else None
     author_id = user['author_id'] if user else None
     record = _query_record(key)
     record_id = str(record['_id'])
     async_result = celery_app.send_task("recommender.recommend",
-                                        args=(author_id, record_id))
+                                        args=(author_id, record_id, visited_ids))
 
     celery_app.send_task("recommender.clear_async_result",
                          args=(async_result.id,),

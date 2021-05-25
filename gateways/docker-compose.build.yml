@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   gateways:
-    image: 192.168.1.103:5000/gateways
+    build: .
     networks:
       - conch_default
     labels:
